@@ -6,7 +6,10 @@
 대화에 실리는데, 그 대화는 턴마다 통째로 다시 전송되므로 비용이 누적된다.
 
 사용법:
-  python3 tools/digest.py <research.json> [본문.json ...] --got "국밥정식,찰순대"
+  python3 tools/digest.py <research.json> --got "국밥정식,찰순대"
+
+기본은 /research 스니펫만 쓴다. 블로그 본문은 통째로 읽지 않는다 (2026-09-21 확정).
+가격처럼 스니펫에 안 나오는 값은 프롬프트에 넣지 말고 비워 둔다.
 
 --got 에 적은 '내가 받은 것'이 들어간 문장을 가장 먼저, 가장 많이 남긴다.
 """
@@ -60,8 +63,13 @@ def main():
     for f in a.bodies:
         d = json.load(open(f, encoding='utf-8'))
         pool += list(sentences(d.get('text')))
+    # 스니펫은 이미 요약본이라 문장으로 쪼개지 않는다.
+    # 쪼개면 '받은 것'이 걸린 대목이 필터에 잘려 나간다.
     for s in (r.get('reviews') or {}).get('snippets', []):
-        pool += list(sentences(s.get('summary')))
+        for part in (s.get('title'), s.get('summary')):
+            part = re.sub(r'\s+', ' ', (part or '')).strip()
+            if len(part) >= 18 and not DROP.search(part):
+                pool.append(part[:200])
 
     seen, mine, rest = set(), [], []
     for s in pool:
