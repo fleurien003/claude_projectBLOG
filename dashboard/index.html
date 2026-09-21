@@ -260,7 +260,7 @@
   <header class="top">
     <div class="eyebrow">르나성공시대 · 블로그 대시보드</div>
     <h1 id="mainTitle">🔥 홈피드 트렌드 대시보드</h1>
-    <div class="desc" id="mainDesc">월~목 오후 2시에 카테고리별 트렌드 후보를 올려요. 쓸 주제를 골라주세요.</div>
+    <div class="desc" id="mainDesc">매일 아침 8시에 카테고리별 트렌드 후보를 올려요. 쓸 주제를 골라주세요.</div>
   </header>
 
   <nav class="seg" id="seg" aria-label="섹션">
@@ -309,7 +309,7 @@
         <input id="addLink" type="url" placeholder="캠페인 링크 붙여넣기 (https://…)" required autocomplete="off">
         <button type="submit" class="btn-add">추가</button>
       </div>
-      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월~목 오전 10시에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
+      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월·목 오후 2시 30분에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
     </form>
     <div class="tabs" id="campTabs"></div>
     <div id="campList"><div class="empty">불러오는 중...</div></div>
@@ -558,7 +558,7 @@
         location.hash = 'draft/' + encodeURIComponent(id);
         return;
       }
-      toast('새 주제 요청 완료! 다음 회차(월~목 14시)에 교체돼요 🔄');
+      toast('새 주제 요청 완료! 오후 2시 회차에 교체돼요 🔄');
     }catch(err){
       toast('저장에 실패했어요. 다시 시도해주세요.');
       btn.disabled = false;
@@ -1496,7 +1496,7 @@ async function writeReview(id){
       input.value = ''; addForm.hidden = true;
       document.getElementById('campAdd').setAttribute('aria-expanded', 'false');
       campStage = 'active'; renderCamps();
-      toast('추가했어요! 내일 오전 9시(오늘 9시 전이면 오늘)에 기본 정보와 프롬프트가 채워져요 🤖');
+      toast('추가했어요! 다음 월·목 오후 2시 30분에 기본 정보와 프롬프트가 채워져요 🤖');
     }catch(err){
       toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
     }
@@ -1574,7 +1574,7 @@ async function writeReview(id){
         '<textarea class="rev-ta" id="f_revise" placeholder="예) ③ 메뉴 설명이 길어요, 절반으로 줄여줘&#10;도입부가 딱딱해요. 좀 더 수다스럽게&#10;마무리에 주차 이야기 한 줄 넣어줘&#10;해시태그에 지역 키워드 더 넣어줘"></textarea>' +
         '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="dReviseBtn">✏️ 수정 반영</button><button type="button" class="btn-sm" id="dReviseStop" hidden>멈추기</button><span class="save-status" id="dReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>' +
         '<div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="dPostState"></span></div>' +
-        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올리면 월~목 자동화가 알아서 채워요. 급하면 여기 직접 붙여넣어도 돼요." autocomplete="off">' +
+        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (자동 감지는 아직 없어요)" autocomplete="off">' +
         '<div class="sec-head"><span>업로드 전 점검</span><span class="save-status">플랫폼 미션·금지어 자동 확인</span></div><div class="chk-list" id="dCheck"></div>' +
         '<div class="sec-head"><span>소주제별 복사</span><span class="save-status">누르면 그 부분만 복사돼요</span></div><div class="sec-list" id="dSections"></div>' +
       '</div>' +
@@ -1721,7 +1721,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var auto = document.getElementById('dAutoState');
     if(c.auto_status === 'failed'){ auto.className = 'auto-line fail'; auto.textContent = '⚠️ 자동 입력 실패' + (c.auto_note ? ' — ' + c.auto_note : '') + ' · 다음 자동화 때 다시 시도해요'; }
     else if(c.auto_filled_at){ auto.className = 'auto-line'; auto.textContent = fmtStamp(c.auto_filled_at) + ' 자동 입력' + (c.auto_note ? ' · ' + c.auto_note : ''); }
-    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월~목 오전 10시 자동화 때 캠페인 링크에서 채워져요'; }
+    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월·목 오후 2시 30분 자동화 때 캠페인 링크에서 채워져요'; }
     else { auto.className = 'auto-line'; auto.textContent = '예전에 등록한 체험단이에요'; }
 
     var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
@@ -1753,7 +1753,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       pView.innerHTML = esc(pp.before) + '<span class="mine">' + esc(pp.mine) + '</span>' + esc(pp.after);
     } else {
       pState.className = 'auto-line wait';
-      pState.textContent = '⏳ 월~목 오전 10시 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
+      pState.textContent = '⏳ 월·목 오후 2시 30분 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
       var tpl = templates[c.template];
       pView.innerHTML = tpl
         ? '<span style="color:var(--sub)">' + esc(tpl.body) + '</span>'
@@ -1972,7 +1972,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('campSection').hidden = sec !== 'camp';
     document.querySelectorAll('#seg button').forEach(function(b){ b.classList.toggle('active', b.dataset.sec === sec); });
     var t = { home:['🏠 르나 블로그 홈', '오늘 뭘 해야 하는지, 글이 어떻게 되고 있는지 한눈에 봐요.'],
-              feed:['🔥 홈피드 트렌드', '월~목 오후 2시에 올라오는 주제 중 쓸 것을 골라주세요.'],
+              feed:['🔥 홈피드 트렌드', '매일 아침 8시에 올라오는 주제 중 쓸 것을 골라주세요.'],
               camp:['📝 체험단 관리', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'] }[sec] || [];
     document.getElementById('mainTitle').textContent = t[0] || '';
     document.getElementById('mainDesc').textContent = t[1] || '';
