@@ -1,5 +1,11 @@
 # 중계 서버 배포 가이드 (은아님용)
 
+> **2026-09-21 진행 상황**
+> 배포 완료: https://naver-blog-helper.onrender.com
+> 환경 네트워크 접근을 '사용자 지정'으로 바꿔 클라우드에서 호출 성공.
+> 검색광고 API ✅ / 검색 Open API ❌ 401 (Client ID·Secret 재확인 필요)
+> 토큰 보호 코드는 아직 미배포 — Render에서 Manual sync 필요.
+
 `fleurien003/naver-blog-helper`를 Render에 올려서, 컴퓨터를 켜두지 않아도
 자동화가 네이버 정보를 가져올 수 있게 만드는 순서입니다.
 
