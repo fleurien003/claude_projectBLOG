@@ -115,8 +115,26 @@
   .btn-open-editor{ border:none; background:var(--ink); color:var(--bg); font-size:13px; font-weight:700; padding:9px 14px; border-radius:10px; cursor:pointer; font-family:inherit; }
 
   /* Editor page */
-  .editor-wrap{ max-width:640px; margin:0 auto; padding:20px 16px 80px; }
-  .editor-back{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--sub); text-decoration:none; margin-bottom:14px; background:none; border:none; cursor:pointer; padding:0; font-family:inherit; }
+  .editor-wrap{ max-width:640px; margin:0 auto; padding:64px 16px 80px; }
+  /* 뒤로가기 — 오른쪽 위에 고정해서 스크롤해도 따라온다 */
+  .editor-back{ position:fixed; top:calc(env(safe-area-inset-top,0px) + 12px); right:16px; z-index:40;
+    display:inline-flex; align-items:center; gap:6px; font-size:13.5px; font-weight:700;
+    color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:10px 16px; box-shadow:var(--shadow); cursor:pointer; font-family:inherit; margin:0; }
+  .editor-back:hover{ border-color:var(--accent); color:var(--accent); }
+  @media (max-width:520px){ .editor-back{ right:12px; padding:9px 13px; font-size:13px; } }
+
+  /* 확인창 — 아티팩트 안에서는 confirm()이 막혀 있어 직접 만든다 */
+  .ask-back{ position:fixed; inset:0; z-index:100; background:rgba(20,12,8,.45);
+    display:flex; align-items:center; justify-content:center; padding:24px; }
+  .ask-box{ background:var(--card); border:1px solid var(--line); border-radius:16px;
+    box-shadow:0 10px 40px rgba(0,0,0,.25); padding:20px; max-width:360px; width:100%; }
+  .ask-box p{ margin:0 0 16px; font-size:14.5px; line-height:1.6; color:var(--ink); white-space:pre-line; }
+  .ask-btns{ display:flex; gap:8px; }
+  .ask-btns button{ flex:1; padding:11px; border-radius:11px; font:inherit; font-size:13.5px;
+    font-weight:700; cursor:pointer; border:1px solid var(--line); background:var(--bg); color:var(--sub); }
+  .ask-btns button.go{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
+  .ask-btns button.danger{ background:var(--danger-ink); color:#fff; border-color:transparent; }
   .editor-head{ margin-bottom:16px; }
   .editor-head .chip{ margin-bottom:8px; display:inline-block; }
   .editor-head h1{ font-size:19px; font-weight:800; margin:0 0 4px; }
@@ -398,6 +416,35 @@
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2600);
+  }
+
+  /* confirm()은 아티팩트 iframe에서 막혀 있다. 눌러도 아무 일이 없어 보이므로 직접 만든다. */
+  function ask(msg, okLabel, danger){
+    return new Promise(function(resolve){
+      var back = document.createElement('div');
+      back.className = 'ask-back';
+      var box = document.createElement('div');
+      box.className = 'ask-box';
+      var p = document.createElement('p');
+      p.textContent = msg;
+      var row = document.createElement('div');
+      row.className = 'ask-btns';
+      var no = document.createElement('button');
+      no.type = 'button'; no.textContent = '취소';
+      var yes = document.createElement('button');
+      yes.type = 'button'; yes.textContent = okLabel || '확인';
+      yes.className = danger ? 'danger' : 'go';
+      row.appendChild(no); row.appendChild(yes);
+      box.appendChild(p); box.appendChild(row); back.appendChild(box);
+      document.body.appendChild(back);
+      function done(v){ back.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
+      function onKey(e){ if(e.key === 'Escape') done(false); }
+      no.onclick = function(){ done(false); };
+      yes.onclick = function(){ done(true); };
+      back.onclick = function(e){ if(e.target === back) done(false); };
+      document.addEventListener('keydown', onKey);
+      yes.focus();
+    });
   }
 
   function daysAgoLabel(eventDate){
@@ -688,8 +735,8 @@
         }).catch(function(){ if(ps) ps.textContent = '저장 실패 — 다시 시도해주세요'; });
       }, 800);
     };
-    document.getElementById('feedWriteBtn').onclick = function(){
-      if(feedItem && feedItem.draft_content && !confirm('지금 글을 지우고 새로 쓸까요?')) return;
+    document.getElementById('feedWriteBtn').onclick = async function(){
+      if(feedItem && feedItem.draft_content && !(await ask('지금 글을 지우고 새로 쓸까요?', '다시 쓰기'))) return;
       writeFeedDraft(id, docRef, null);
     };
     document.getElementById('feedStopBtn').onclick = function(){ if(feedWriting) feedWriting.abort(); };
@@ -1065,7 +1112,7 @@
     var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
     if(!c || drafting[id]) return;
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 초안 쓰기를 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
-    if(!c.prompt && !confirm('아직 프롬프트가 없어요. 기본 정보만으로 초안을 쓸까요?')) return;
+    if(!c.prompt && !(await ask('아직 프롬프트가 없어요.\n기본 정보만으로 초안을 쓸까요?', '그대로 쓰기'))) return;
     var ctl = new AbortController();
     drafting[id] = { ctl: ctl, len: 0 };
     renderCamps(); refreshDraftUI(id, '✍️ 초안 쓰는 중… (처음 30초~1분은 생각하는 시간이에요)');
@@ -1156,7 +1203,7 @@
     if(!c || prompting[id]) return;
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
     if(!templatesLoaded || !Object.keys(templates).length){ toast('템플릿을 아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
-    if(c.prompt && !confirm('이미 프롬프트가 있어요. 지우고 새로 쓸까요?')) return;
+    if(c.prompt && !(await ask('이미 프롬프트가 있어요.\n지우고 새로 쓸까요?', '다시 쓰기'))) return;
     var ctl = new AbortController();
     prompting[id] = { ctl: ctl };
     var btn = document.getElementById('dPromptNow'), stop = document.getElementById('dPromptStop'), st = document.getElementById('dPromptState');
@@ -1595,15 +1642,15 @@ async function writeReview(id){
     detailBuilt = true;
 
     document.getElementById('dCopy').onclick = function(){ copyText(document.getElementById('f_draft_content')); };
-    document.getElementById('dDraftBtn').onclick = function(){
+    document.getElementById('dDraftBtn').onclick = async function(){
       var c = lastDetail || {};
-      if(c.draft_content && !confirm('지금 초안을 지우고 새로 쓸까요? 직접 고친 내용도 사라져요.')) return;
+      if(c.draft_content && !(await ask('지금 초안을 지우고 새로 쓸까요?\n직접 고친 내용도 사라져요.', '다시 쓰기'))) return;
       writeDraft(detailId);
     };
 document.getElementById('dRevCopy').onclick = function(){ copyText(document.getElementById('f_naver_review')); };
-document.getElementById('dRevBtn').onclick = function(){
+document.getElementById('dRevBtn').onclick = async function(){
   var c = lastDetail || {};
-  if(c.naver_review && !confirm('지금 리뷰를 지우고 새로 쓸까요?')) return;
+  if(c.naver_review && !(await ask('지금 리뷰를 지우고 새로 쓸까요?', '다시 쓰기'))) return;
   writeReview(detailId);
 };
 document.getElementById('f_naver_review').addEventListener('input', function(){ revCount(this.value); });
@@ -1623,10 +1670,19 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     };
     document.getElementById('dDelete').onclick = async function(){
       var name = document.getElementById('dTitle').textContent || '이 체험단';
-      if(!confirm(name + '을(를) 대시보드에서 삭제할까요? 되돌릴 수 없어요.')) return;
+      if(!(await ask(name + '을(를) 대시보드에서 삭제할까요?\n되돌릴 수 없어요.', '삭제', true))) return;
       var id = detailId;
-      try{ await db.doc('campaigns/' + id).delete(); toast('삭제했어요'); location.hash = 'camp'; }
-      catch(e){ toast('삭제에 실패했어요.'); }
+      // 입력칸 자동저장이 예약돼 있으면 지운 문서가 되살아난다. 먼저 전부 취소한다.
+      Object.keys(detailTimers).forEach(function(k){ clearTimeout(detailTimers[k]); });
+      detailTimers = {}; detailFlush = {}; detailPending = {};
+      try{
+        await db.doc('campaigns/' + id).delete();
+        toast('삭제했어요');
+        location.hash = 'camp';
+      }catch(e){
+        // 왜 실패했는지 보여준다. 그냥 '실패'만 뜨면 원인을 못 찾는다.
+        toast('삭제 실패 — ' + ((e && (e.message || e.code)) || '알 수 없는 오류'));
+      }
     };
   }
 
