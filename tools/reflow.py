@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """초안을 모바일 가독성에 맞게 다시 줄바꿈한다.
 
-르나 규칙 (2026-09-22 확정):
-  - 한 줄에 한 문장. 문장과 문장 사이는 엔터 2번 (빈 줄 1개)
-  - 문단이 끝나면 엔터 4번 (빈 줄 3개)
+르나 규칙 (2026-09-22 재확정):
+  - 글 첫 시작은 무조건 한 문장만 (도입부 첫 줄)
+  - 나머지는 문단 구조. 한 문단은 문장 최대 2개 (1개도 괜찮다)
+  - 문단과 문단 사이는 엔터 2번 (빈 줄 1개)
+  - 소주제 사이는 엔터 4번 (빈 줄 3개)
   - 📍☎️🕖🚘 정보 줄은 붙여 쓰고, 그 위에 상호명·주소를 따로 적지 않는다
 
   python3 tools/reflow.py <초안.txt> [-i]      # -i 를 주면 파일을 덮어쓴다
@@ -13,8 +15,10 @@ import re, sys, argparse
 SUB = re.compile(r'^\s*\d{1,2}\.\s*\S')          # 소주제 줄
 INFO = re.compile(r'^\s*[📍☎️🕖🚘🪑✔️✅]')        # 정보 줄
 TAG = re.compile(r'^\s*#\S')
-# 문장 끝: 마침표·느낌표·물음표 뒤. 숫자 사이의 점(10.5)은 건드리지 않는다
-SPLIT = re.compile(r'(?<=[.!?])\s+(?=[^\s.!?])')
+# 문장 끝: 마침표·느낌표·물음표·물결표 뒤. 숫자 사이의 점(10.5)은 건드리지 않는다
+SPLIT = re.compile(r'(?<=[.!?~])\s+(?=[^\s.!?~])')
+
+MAX_PER_PARA = 2      # 한 문단에 들어가는 문장 수 상한
 
 
 def sentences(chunk):
@@ -38,26 +42,28 @@ def reflow(text):
     body = [l for l in raw[i:] if not TAG.match(l)]
 
     out = [title, '']  # 제목 다음은 빈 줄 하나
-    para = []          # 지금 모으는 중인 문단
+    para = []          # 지금 모으는 중인 덩어리
     prev_info = False
-    first = True
+    opening = True     # 글 맨 처음 문장인가
 
     def flush():
-        """모아둔 문단을 문장 단위로 내보낸다."""
-        nonlocal para
+        """모아둔 글을 문장 2개짜리 문단으로 잘라 내보낸다."""
+        nonlocal para, opening
         if not para:
             return
-        nonlocal first
         ss = sentences(' '.join(para))
-        if first:
-            first = False                      # 도입부는 제목 바로 아래에 붙인다
-        elif out and out[-1] != '':
-            out.extend(['', '', ''])           # 문단 앞 빈 줄 3개
-        for n, s in enumerate(ss):
-            if n:
-                out.append('')                 # 문장 사이 빈 줄 1개
-            out.append(s)
         para = []
+        groups = []
+        if opening and ss:
+            groups.append([ss[0]])              # 글 첫 시작은 한 문장만
+            ss = ss[1:]
+            opening = False
+        for n in range(0, len(ss), MAX_PER_PARA):
+            groups.append(ss[n:n + MAX_PER_PARA])
+        for g in groups:
+            if out and out[-1] != '':
+                out.append('')                  # 문단 사이 빈 줄 1개
+            out.append(' '.join(g))
 
     for line in body:
         st = line.strip()
@@ -75,6 +81,8 @@ def reflow(text):
             out.append(st)                      # 정보 줄끼리는 붙여 쓴다
             prev_info = True
             continue
+        if prev_info and out and out[-1] != '':
+            out.extend(['', '', ''])            # 정보 줄 뒤에는 빈 줄 3개
         prev_info = False
         para.append(st)
     flush()
