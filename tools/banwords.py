@@ -66,12 +66,9 @@ def main():
     table = dict(COMMON)
     table.update(SETS.get(a.type, {}))
     if a.type == 'derm':
-        # 피부과·의원 글에서만 '내돈내산'을 쓸 수 있다. 단 제목에는 못 쓴다.
+        # 피부과·의원 글에서만 '내돈내산'을 쓸 수 있다. 제목에 넣어도 된다.
         for w in ('내돈내산', '제 돈으로', '사비로'):
             table.pop(w, None)
-        title = text.split('\n', 1)[0]
-        if '내돈내산' in title:
-            print('❌ 제목에 "내돈내산"이 있다 — 피부과 글도 제목에는 쓰지 않는다\n')
 
     hits = []
     for word, fix in table.items():
