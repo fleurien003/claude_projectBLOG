@@ -116,13 +116,13 @@
 
   /* Editor page */
   .editor-wrap{ max-width:640px; margin:0 auto; padding:64px 16px 80px; }
-  /* 뒤로가기 — 오른쪽 위에 고정해서 스크롤해도 따라온다 */
-  .editor-back{ position:fixed; top:calc(env(safe-area-inset-top,0px) + 12px); right:16px; z-index:40;
+  /* 뒤로가기 — 왼쪽 위에 고정해서 스크롤해도 따라온다 */
+  .editor-back{ position:fixed; top:calc(env(safe-area-inset-top,0px) + 12px); left:16px; z-index:40;
     display:inline-flex; align-items:center; gap:6px; font-size:13.5px; font-weight:700;
     color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:999px;
     padding:10px 16px; box-shadow:var(--shadow); cursor:pointer; font-family:inherit; margin:0; }
   .editor-back:hover{ border-color:var(--accent); color:var(--accent); }
-  @media (max-width:520px){ .editor-back{ right:12px; padding:9px 13px; font-size:13px; } }
+  @media (max-width:520px){ .editor-back{ left:12px; padding:9px 13px; font-size:13px; } }
 
   /* 확인창 — 아티팩트 안에서는 confirm()이 막혀 있어 직접 만든다 */
   .ask-back{ position:fixed; inset:0; z-index:100; background:rgba(20,12,8,.45);
