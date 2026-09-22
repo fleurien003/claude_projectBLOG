@@ -56,8 +56,15 @@ def main():
             print(f'  {label} : {p[k]}')
     ad = r.get('search_ad') or {}
     if ad.get('relKeyword'):
-        vol = (ad.get('monthlyPcQcCnt') or 0) + (ad.get('monthlyMobileQcCnt') or 0)
-        print(f"  검색량 : {ad['relKeyword']} 월 {vol:,}회 (경쟁 {ad.get('compIdx','-')})")
+        # 검색광고 API는 10 미만이면 숫자 대신 '< 10' 을 돌려준다
+        def num(v):
+            try:
+                return int(str(v).replace(',', '').strip())
+            except (TypeError, ValueError):
+                return None
+        pc, mo = num(ad.get('monthlyPcQcCnt')), num(ad.get('monthlyMobileQcCnt'))
+        vol = f'{pc + mo:,}회' if pc is not None and mo is not None else '10회 미만'
+        print(f"  검색량 : {ad['relKeyword']} 월 {vol} (경쟁 {ad.get('compIdx','-')})")
 
     pool = []
     for f in a.bodies:
