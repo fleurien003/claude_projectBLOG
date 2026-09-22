@@ -837,6 +837,7 @@
   function won(n){ return (Number(n)||0).toLocaleString('ko-KR') + '원'; }
 
   var TAB_DEFS = [
+    { key:'urgent',  label:'🔥 마감' },
     { key:'active',  label:'진행 중' },
     { key:'pre',     label:'예약 전' },
     { key:'booked',  label:'방문 예정' },
@@ -849,6 +850,12 @@
   function matchStage(c, key){
     if(key === 'all') return true;
     if(key === 'active') return isActive(c);
+    // 🔥 마감 : 오늘이 마감이거나 이미 지난 것만. 상태는 건드리지 않고 보기만 거른다.
+    if(key === 'urgent'){
+      if(!isActive(c)) return false;
+      var n = daysUntil(c.due);
+      return n !== null && n <= 0;
+    }
     return stageOf(c) === key;
   }
 
@@ -867,7 +874,7 @@
 
     document.getElementById('campStats').innerHTML =
       '<button type="button" class="stat' + (visitSoon.length?' hot':'') + '" data-go="booked"><div class="k">오늘·내일 방문</div><div class="v">' + visitSoon.length + '<small>건</small></div></button>' +
-      '<button type="button" class="stat' + (dueSoon.length?' hot':'') + '" data-go="active"><div class="k">마감 3일 이내</div><div class="v">' + dueSoon.length + '<small>건</small></div></button>' +
+      '<button type="button" class="stat' + (dueSoon.length?' hot':'') + '" data-go="urgent"><div class="k">마감 3일 이내</div><div class="v">' + dueSoon.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat' + (drafted.length?' hot':'') + '" data-go="drafted"><div class="k">초안 확인·업로드</div><div class="v">' + drafted.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat" data-go="all"><div class="k">' + (+month.slice(5)) + '월 지원금</div><div class="v">' + (monthSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '<small>만원</small></div></button>';
 
@@ -892,6 +899,8 @@
       var pa = isActive(a), pb = isActive(b);
       if(pa !== pb) return pa ? -1 : 1;
       if(pa){
+        // 🔥 마감 탭에서는 가장 많이 지난 것부터. 다른 기준을 섞지 않는다.
+        if(campStage === 'urgent') return (a.due||BIG).localeCompare(b.due||BIG);
         var ka = stageOf(a) === 'visited' ? '0' : '1', kb = stageOf(b) === 'visited' ? '0' : '1';
         if(campStage === 'active' && ka !== kb) return ka < kb ? -1 : 1;
         var sa = isStale(a), sb = isStale(b);
@@ -903,7 +912,7 @@
 
     var el = document.getElementById('campList');
     if(!list.length){
-      el.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없어요.' : (campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
+      el.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없어요.' : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
       return;
     }
     var limit = (campStage === 'posted' || campStage === 'all') && !showAllPosted && !q ? 30 : list.length;
