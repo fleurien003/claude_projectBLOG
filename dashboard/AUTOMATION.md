@@ -10,11 +10,14 @@
 
 | 상태 | 주기 (KST) | 이름 | ID |
 |---|---|---|---|
-| 🟢 | 매일 08:00 | 홈피드 ① 아침 주제 발굴 | `trig_013kPLEYiATN5SF76SCxScp7` |
-| 🟢 | 매일 14:00 | 홈피드 ② 다른 주제 가져오기 | `trig_01Gpu7v7Sy8eaDbYGYTvasum` |
+| ⏸️ | 매일 08:00 | 홈피드 ① 아침 주제 발굴 (**고도화까지 정지**) | `trig_013kPLEYiATN5SF76SCxScp7` |
+| ⏸️ | 매일 14:00 | 홈피드 ② 다른 주제 가져오기 (**고도화까지 정지**) | `trig_01Gpu7v7Sy8eaDbYGYTvasum` |
 | 🟢 | 월·목 14:30 | 체험단 ② 선정메일·프롬프트·사진폴더 | `trig_01MYfVdv1WsPYvRiLu2LciQu` |
 | 🟢 | 화 01:00 UTC | 체험단 신청 후보 리스트업 | `trig_01Rwvbr4C1hMdhrr5cttbFsZ` |
 | 🟢 | 09-22 1회 | CTA 사이트 정리 | `trig_01Hr8TpkTg6CbmbtkVy83Qry` |
+
+> **이 루틴들은 클라우드 에이전트가 켜거나 끌 수 없습니다.** 맥북 Claude 앱이 `http_api`로
+> 만들었기 때문입니다. 은아님이 `https://claude.ai/code/routines/<trigger_id>` 에서 직접 하세요.
 
 ## 꺼진 것 (되살리지 마세요)
 
