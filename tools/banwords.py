@@ -54,6 +54,14 @@ DERM = {
 
 SETS = {'massage': MASSAGE, 'derm': DERM}
 
+# 말투 — 법적 문제는 아니지만 르나가 쓰지 않는 말. ⚠️ 로 따로 보여준다.
+STYLE = {
+    '와닿': '르나가 안 쓰는 말. "좋으실 거예요", "반가우실 거예요"처럼 구체적으로',
+    '완전히': '완전', '매우': '진짜 / 너무', '상당히': '꽤 / 진짜', '굉장히': '너무 / 진짜',
+    '됩니다': '돼요', '합니다': '해요', '입니다': '이에요 / 예요',
+    '되겠어요': '되겠죠',
+}
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -69,6 +77,21 @@ def main():
         # 피부과·의원 글에서만 '내돈내산'을 쓸 수 있다. 제목에 넣어도 된다.
         for w in ('내돈내산', '제 돈으로', '사비로'):
             table.pop(w, None)
+
+    # 말투 검사 — 통과 여부와 무관하게 항상 보여준다
+    style_hits = []
+    for word, fix in STYLE.items():
+        n = text.count(word)
+        if n:
+            m = re.search(r'.{0,22}' + re.escape(word) + r'.{0,22}', text)
+            style_hits.append((n, word, fix, m.group(0).replace('\n', ' ') if m else ''))
+    if style_hits:
+        style_hits.sort(reverse=True)
+        print(f'⚠️  말투 — {len(style_hits)}종 / 총 {sum(h[0] for h in style_hits)}회')
+        for n, word, fix, ctx in style_hits:
+            print(f'  {word}  ×{n}  →  {fix}')
+            print(f'      …{ctx}…')
+        print()
 
     hits = []
     for word, fix in table.items():
