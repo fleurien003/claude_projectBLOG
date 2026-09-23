@@ -2221,6 +2221,39 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     res.hidden = false;
   }
 
+  /* 중계 서버는 Render 무료 플랜이라 15분쯤 놀면 잠든다.
+     깨어나는 동안(또는 배포 중 재시작 동안)에는 연결이 아예 거부되므로,
+     한 번 실패했다고 포기하지 않고 기다렸다가 다시 부른다. */
+  var KW_TRIES = [0, 3000, 8000];   // 즉시 · 3초 뒤 · 8초 뒤
+
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  async function fetchKeyword(q, onStage){
+    var lastErr = null;
+    for(var i = 0; i < KW_TRIES.length; i++){
+      if(KW_TRIES[i]){
+        onStage('서버가 자고 있었나 봐요. ' + (KW_TRIES[i]/1000) + '초 뒤 다시 부를게요 (' + (i+1) + '/' + KW_TRIES.length + ')');
+        await sleep(KW_TRIES[i]);
+      }
+      // 무료 서버가 깨어나는 데 최대 1분쯤 걸린다. 그보다 넉넉히 기다린다.
+      var ctl = new AbortController();
+      var timer = setTimeout(function(){ ctl.abort(); }, 90000);
+      try{
+        var r = await fetch(RELAY + '/keyword?q=' + encodeURIComponent(q), { signal: ctl.signal });
+        var d = await r.json();
+        if(r.ok && !d.error) return { ok:true, data:d };
+        // 서버가 살아서 답했는데 내용이 실패면 다시 불러도 같다. 바로 끝낸다.
+        return { ok:false, msg: d.error || d.detail || ('서버가 ' + r.status + ' 로 답했어요') };
+      }catch(e){
+        lastErr = e;
+      }finally{
+        clearTimeout(timer);
+      }
+    }
+    return { ok:false, msg:'중계 서버가 응답하지 않아요 (' + KW_TRIES.length + '번 시도).',
+             retry:true, why: lastErr && lastErr.name === 'AbortError' ? '90초를 기다려도 답이 없었어요.' : '' };
+  }
+
   async function kwLookup(word){
     if(kwBusy) return;
     var q = (word || document.getElementById('kwInput').value || '').trim();
@@ -2231,26 +2264,25 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var btn = document.getElementById('kwBtn');
     kwBusy = true; btn.disabled = true;
     state.textContent = '조회 중...';
-    // 무료 서버가 잠들어 있으면 첫 응답이 오래 걸린다. 멈춘 것처럼 보이지 않게 알려준다.
-    var slow = setTimeout(function(){ state.textContent = '서버를 깨우는 중이에요. 처음 한 번만 오래 걸려요 (최대 1분)...'; }, 4000);
+    var slow = setTimeout(function(){
+      if(kwBusy) state.textContent = '서버를 깨우는 중이에요. 처음 한 번만 오래 걸려요 (최대 1분)...';
+    }, 4000);
 
-    try{
-      var r = await fetch(RELAY + '/keyword?q=' + encodeURIComponent(q));
-      var d = await r.json();
-      if(!r.ok || d.error){
-        state.textContent = '조회 실패 — ' + (d.error || d.detail || ('상태 ' + r.status));
-        document.getElementById('kwRes').hidden = true;
-      }else{
-        kwRender(d);
-        state.textContent = '네이버 검색광고·데이터랩 기준';
-      }
-    }catch(e){
-      state.textContent = '중계 서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.';
-      document.getElementById('kwRes').hidden = true;
-    }finally{
-      clearTimeout(slow);
-      kwBusy = false; btn.disabled = false;
+    var res = await fetchKeyword(q, function(msg){ clearTimeout(slow); state.textContent = msg; });
+    clearTimeout(slow);
+    kwBusy = false; btn.disabled = false;
+
+    if(res.ok){
+      kwRender(res.data);
+      state.textContent = '네이버 검색광고·데이터랩 기준';
+      return;
     }
+    document.getElementById('kwRes').hidden = true;
+    state.innerHTML = esc(res.msg) + (res.why ? ' ' + esc(res.why) : '') +
+      (res.retry ? '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>' +
+                   '<br><span style="opacity:.8">배포 직후라면 1~2분 뒤에 됩니다.</span>' : '');
+    var rb = document.getElementById('kwRetry');
+    if(rb) rb.onclick = function(){ kwLookup(q); };
   }
 
   document.getElementById('kwForm').addEventListener('submit', function(e){

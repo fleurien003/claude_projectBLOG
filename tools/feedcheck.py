@@ -22,7 +22,8 @@ DATE = re.compile(r'\d{1,2}월\s*\d{1,2}일|지난\s*(?:주말|주|달)|어제|�
 BODY_MIN, BODY_MAX = 1300, 1700
 SUB_MIN, SUB_MAX = 3, 5
 TAGS_EXACT = 30
-KEYWORD_MIN = 5
+KEYWORD_MIN = 5          # 붙인 형태 + 띄운 형태 합계
+KEYWORD_JOINED_MIN = 3   # 그중 붙인 형태로 최소 몇 번
 FLOURISH_MAX = 4          # ~ 와 ! 합계
 MAX_PER_PARA = 2          # 한 문단 문장 수
 
@@ -69,16 +70,32 @@ def check(text, keyword):
         return re.sub(r'\s+', '', x)
 
     if keyword:
-        n = body.count(keyword)
-        detail = f'"{keyword}" 본문 {n}회 (최소 {KEYWORD_MIN}회)'
-        if n < KEYWORD_MIN:
-            # 띄어쓰기만 다른 형태로 썼는지 짚어준다 — 9/21에 실제로 난 사고.
-            # 키워드가 붙어 있으면 정규식으로는 못 잡으므로 양쪽 공백을 지우고 센다.
-            m = squash(body).count(squash(keyword))
-            if m > n:
-                detail += f'  ← 띄어쓴 형태로 {m}회 썼음. 키워드는 붙여서 그대로 쓴다!'
-        judge(n >= KEYWORD_MIN, '메인 키워드', detail)
-        judge(squash(keyword) in squash(title), '제목에 키워드', title[:50])
+        # 2026-09-23 확정 — 붙인 형태와 띄운 형태를 둘 다 넣는다.
+        #
+        # 네이버는 형태소 단위로 분석하고, 띄어쓰기에 따라 노출이 달라진 사례가
+        # 실제로 보고된다. 어느 쪽이 걸릴지 단정할 공식 자료가 없고, 한 글에
+        # 여러 표기를 넣어도 순위가 분산되지 않으므로(Ahrefs) 둘 다 건다.
+        #
+        #   붙인 형태  본문 3회 이상      ← 검색 질의와 같은 꼴
+        #   띄운 형태  제목에 1회         ← 사람이 먼저 읽는다. 홈피드는 CTR로 돈다
+        joined = squash(keyword)
+        n_join = body.count(joined)
+        n_all = squash(body).count(joined)      # 공백을 지우고 세면 두 형태가 다 잡힌다
+        n_space = n_all - n_join
+
+        judge(n_join >= KEYWORD_JOINED_MIN,
+              '메인 키워드(붙여서)',
+              f'"{joined}" 본문 {n_join}회 (최소 {KEYWORD_JOINED_MIN}회)')
+        judge(n_all >= KEYWORD_MIN,
+              '메인 키워드(합계)',
+              f'붙인 {n_join}회 + 띄운 {n_space}회 = {n_all}회 (최소 {KEYWORD_MIN}회)')
+
+        in_title = joined in squash(title)
+        spaced_in_title = in_title and joined not in title
+        judge(in_title, '제목에 키워드', title[:50])
+        if in_title:
+            flag(spaced_in_title, '제목 띄어쓰기',
+                 '띄운 형태로 들어감 ✓' if spaced_in_title else '붙여 썼음 — 제목은 띄우는 쪽이 읽기 좋다')
 
     flourish = body.count('~') + body.count('!')
     judge(flourish <= FLOURISH_MAX, '~ 와 ! 개수', f'{flourish}개 (최대 {FLOURISH_MAX})')
