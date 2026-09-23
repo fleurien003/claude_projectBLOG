@@ -1,0 +1,29 @@
+{
+  "category": "여행이슈",
+  "category_key": "travel_issue",
+  "created_at": 1,
+  "date": "2026-09-16",
+  "emphasis": "태국 정부가 93개국 대상 무비자 체류기간을 60일→30일로 단축하는 조치를 9월 15일부터 시행. 한국은 별도 비자면제협정 덕분에 기존 90일 체류 유지.",
+  "event_date": "2026-09-15",
+  "image_links": [
+    {
+      "label": "🖼️ 구글 이미지 검색",
+      "url": "https://www.google.com/search?tbm=isch&q=태국 무비자"
+    },
+    {
+      "label": "📌 핀터레스트 검색",
+      "url": "https://kr.pinterest.com/search/pins/?q=태국여행"
+    },
+    {
+      "label": "📷 인스타그램 태그",
+      "url": "https://www.instagram.com/explore/tags/태국여행/"
+    }
+  ],
+  "source_url": "https://www.dongponews.net/news/articleView.html?idxno=60249",
+  "source_url2": "https://www.news-wa.com/article/travel/tour-world/2026/09/08/20260908500063",
+  "status": "pending",
+  "status_updated_at": 1789600000000,
+  "title_bait": "9월 15일부터 태국 무비자 30일로 줄었다는데, 한국인만 90일 그대로인 진짜 이유",
+  "topic": "태국 무비자 체류기간 단축 시행, 한국인은 90일 그대로",
+  "twist": "헤드라인만 보고 한국인도 태국 체류기간이 줄었다고 오해하기 쉽지만 실제로는 영향이 없고, 오히려 다른 93개국보다 3배 긴 체류가 가능하다는 정보 격차."
+}

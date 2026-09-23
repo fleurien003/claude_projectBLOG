@@ -1,0 +1,30 @@
+{
+  "category": "컬리추천템",
+  "category_key": "kurly_pick",
+  "created_at": 1,
+  "date": "2026-09-16",
+  "emphasis": "옛날 간식 취급받던 뻥튀기가 무첨가·저알레르기 특성 덕분에 최근 이유식·아기 간식 시장에서 재조명되며 하루 5000봉이 팔린다는 보도(한국경제, 2026-09-09).",
+  "event_date": "2026-09-09",
+  "image_links": [
+    {
+      "label": "🖼️ 구글 이미지 검색",
+      "url": "https://www.google.com/search?tbm=isch&q=뻥튀기 아기간식"
+    },
+    {
+      "label": "📌 핀터레스트 검색",
+      "url": "https://kr.pinterest.com/search/pins/?q=뻥튀기"
+    },
+    {
+      "label": "📷 인스타그램 태그",
+      "url": "https://www.instagram.com/explore/tags/뻥튀기/"
+    }
+  ],
+  "kurly_action_note": "🔍 추천 제품 카테고리 — 무첨가/유기농 쌀 뻥튀기(이유식·유아용), 저당·저나트륨 전통 뻥튀기(성인용), 쌀뻥/현미뻥 곡물 튀밥(그래놀라 토핑용). 컬리 큐레이터 홈에서 직접 검색 후 링크 생성 필요 (르나 로그인 필요, 자동 생성 불가)",
+  "source_url": "https://www.hankyung.com/article/202609093212i",
+  "source_url2": "https://www.nbntv.co.kr/news/articleView.html?idxno=71220",
+  "status": "confirmed",
+  "status_updated_at": 1789532601922,
+  "title_bait": "하루 5000봉 팔린다는 이 국민간식, 아기 간식으로 쓸 때 이건 꼭 확인하세요",
+  "topic": "원조 K과자 뻥튀기, 알고 보면 요즘 엄마들이 하루 5000봉씩 사가는 아기 간식",
+  "twist": "다이어트 간식으로 알려졌던 뻥튀기가 사실 열량이 낮지 않다는 지적도 함께 나와, 뻥튀기는 저칼로리 다이어트 간식이라는 통념을 뒤집는 각도도 있음. 첨가물 유무는 제품별 확인 필요."
+}

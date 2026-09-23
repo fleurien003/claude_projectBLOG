@@ -1,0 +1,29 @@
+{
+  "category": "여행명소",
+  "category_key": "travel_spot",
+  "created_at": 1,
+  "date": "2026-09-16",
+  "emphasis": "등산 없이 케이블카로 20분 만에 해발 1,381m 가리왕산 하봉 정상부 도달. 노선 길이 3.51km, 강원 정선군 소재. 최근 보름 만에 8,500명이 다녀갈 정도로 재방문 열기.",
+  "event_date": "2026-09-12",
+  "image_links": [
+    {
+      "label": "🖼️ 구글 이미지 검색",
+      "url": "https://www.google.com/search?tbm=isch&q=가리왕산 케이블카"
+    },
+    {
+      "label": "📌 핀터레스트 검색",
+      "url": "https://kr.pinterest.com/search/pins/?q=가리왕산"
+    },
+    {
+      "label": "📷 인스타그램 태그",
+      "url": "https://www.instagram.com/explore/tags/가리왕산/"
+    }
+  ],
+  "source_url": "https://www.khan.co.kr/en/article/202607282115027/",
+  "source_url2": "https://www.telltrip.com/domestic-travel/gariwangsan-cable-car-eco-restoration-reopens/",
+  "status": "confirmed",
+  "status_updated_at": 1789532395329,
+  "title_bait": "등산화 안 신고 해발 1,381m 정상 찍고 옴 (feat. 케이블카 20분)",
+  "topic": "정선 가리왕산 케이블카 — 3개월 생태복원 끝 재개장",
+  "twist": "정상 정복은 등산이라는 통념과 달리 등산화 없이 20분 만에 명산급 정상 뷰를 찍을 수 있고, 3개월간 문 닫았다 막 돌아온 리오픈 타이밍이라 아는 사람만 아는 소재."
+}
