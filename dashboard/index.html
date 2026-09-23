@@ -184,6 +184,12 @@
   .kw-legend .dot{ display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:1px; }
   .kw-legend .dot.pc{ background:var(--chip-travel-ink); }
   .kw-legend .dot.mo{ background:var(--accent); }
+  .kw-scale{ display:flex; gap:4px; margin:12px 0 8px; }
+  .kw-scale span{ flex:1; text-align:center; font-size:11.5px; font-weight:700; padding:6px 2px;
+    border-radius:8px; background:var(--bg); color:var(--sub); border:1px solid var(--line); }
+  .kw-scale span.on{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .kw-scale span.on.hot{ background:var(--accent); color:var(--accent-ink); }
+  .kw-scale.off span{ opacity:.45; }
   .kw-foot{ font-size:12px; color:var(--sub); margin-top:10px; line-height:1.6; }
   .kw-rel{ margin-top:12px; border-top:1px dashed var(--line); padding-top:10px; }
   .kw-rel h3{ font-size:12px; font-weight:800; color:var(--sub); margin:0 0 8px; }
@@ -817,9 +823,27 @@
     return rest.slice(0, end < 0 ? rest.length : end).trim();
   }
 
+  /* 카테고리별 제목 공식 — 2026-09-23 르나 승인.
+     네이버 블로그 탭 상위 제목 161개(카테고리당 이벤트 키워드 4개 × 상위 7개)를 실측해서 정했다.
+     "키워드 맨 앞 + 훅"은 연예에만 맞았다. 여행명소는 연도가, 컬리는 판매처가 먼저 온다.
+     근거와 원자료는 docs/06_제목_첫단어_키워드_검증.md */
+  var TITLE_RULE = {
+    celeb: '**메인 키워드(띄운 형태)로 시작하고 바로 뒤에 훅**을 붙여. 키워드 앞에 다른 말을 두지 마. 예) "고현정 향수 뭐 쓰나 했더니.. 크리드 러브 인 블랙", "조현아 다이어트 어떻게 뺀거야..? 10kg 감량 식단부터"',
+    ott: '**작품명으로 시작**해. 앞에 "넷플릭스"·"디즈니+" 같은 플랫폼명은 붙여도 돼. 그 뒤에 궁금증 키워드(기본정보·출연진·몇부작·수위·원작·결말 중 [주제 정보]에 재료가 있는 것)를 나열해. 예) "넷플릭스 스캔들 기본정보 출연진 원작 실제 수위까지"',
+    finance: '**제도 이름으로 시작**해(앞에 "2026년"은 붙여도 돼). 제도명 뒤에 조건·한도·금리 같은 궁금증, 그 뒤에 [주제 정보]에 있는 숫자나 "우리 집은?" 같은 내 상황 질문을 붙여. 예) "상속세 면제한도 10억, 우리 집에 그대로 적용되는지 확인할 3가지"',
+    travel_issue: '**연휴명 + 행동으로 시작**해(앞에 "2026"·"9월"은 붙여도 돼). 뒤에 개수나 일정을 붙여. 예) "추석 연휴 국내여행 추천｜1박2일로 가고 싶은 가을 여행지 5곳"',
+    travel_spot: '**"2026 + 명소명 + 단풍·축제"로 시작**해. 연도가 맨 앞이야. 뒤에 시기·절정·주차 같은 정보를 나열해. 예) "2026 설악산 단풍시기 언제? 첫단풍·절정·주차 총정리"',
+    kurly_pick: '**"컬리 + 품목"으로 시작**해(판매처가 맨 앞이야). 뒤에 가격대·추천을 붙여. 예) "컬리 추석선물세트 추천｜가격대별로 골라봤어요"'
+  };
+  function titleRule(it){
+    var k = it.category_key || '';
+    return TITLE_RULE[/^celeb/.test(k) ? 'celeb' : k] || '';
+  }
+
   function buildFeedPrompt(it, revise){
     var links = (it.image_links || []).map(function(x){ return x && x.label; }).filter(Boolean).join(', ');
     var skeleton = feedSkeleton(it);
+    var tRule = titleRule(it);
     var rules = [
       '너는 네이버 블로거 르나야. 아래 주제로 네이버 홈피드에 올릴 짧은 글을 르나 목소리로 써.',
       '이 글의 목적: 홈피드에서 스크롤하다 멈춰 서서 끝까지 읽게 만드는 것.',
@@ -831,7 +855,8 @@
       '- 줄거리 결말, 제품 스펙처럼 사실로 읽히는 정보도 [주제 정보] 범위 안에서만 쓴다. 결말은 스포하지 말고 궁금증만 남겨.',
       '',
       '[형식]',
-      '- 첫 줄: 제목 한 줄. 검색되는 키워드를 앞쪽에 넣되 낚시 느낌은 피해.',
+      tRule ? '- 첫 줄: 제목 한 줄. 이 카테고리 제목은 ' + tRule + ' 낚시 느낌은 피해.'
+            : '- 첫 줄: 제목 한 줄. 검색되는 키워드를 앞쪽에 넣되 낚시 느낌은 피해.',
       '- 그다음 빈 줄, 도입부(2~4문장, 왜 지금 이게 화제인지).',
       '- **내 시점 날짜는 쓰지 마.** "지난 주말에", "어제 기사 보니까", "9월 20일 보도에 따르면" 같은 표현 금지.',
       '- 다만 **독자에게 필요한 날짜는 써도 돼.** 공개일·개막일·축제 기간·마감일처럼 독자가 알아야 움직일 수 있는 날짜가 그것이야.',
@@ -882,6 +907,7 @@
       '아래를 세어보고 안 맞으면 고친 뒤에 출력해. 설명은 쓰지 말고 고친 글만 내보내.',
       '  · 본문 1,300~1,700자   · 소주제 3~5개   · 해시태그 정확히 30개(중복 없이)',
       (it.main_keyword ? '  · 메인 키워드 "' + it.main_keyword + '" 를 띄어쓰기 그대로 본문에 5회 이상, 제목에도 1회' : '  · 제목에 검색되는 키워드'),
+      tRule ? '  · 제목이 위 [형식]의 카테고리 제목 공식대로 시작하는지' : '',
       '  · 3문장짜리 문단이 없는지   · `~` 와 `!` 합쳐서 4개 이하   · #, *, > 같은 기호 없는지',
       '',
       '글만 출력해. 설명이나 메모는 쓰지 마.'
@@ -2185,14 +2211,48 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       ? '<span class="kw-spike ' + spikeClass(t.icon) + '">' + t.icon + ' ' + esc(t.label) +
         (showMult ? ' ' + t.multiple + '배' : '') + '</span>'
       : '';
-    // 급등 근거를 한 줄로 풀어 쓴다. 숫자만 보여주면 왜 그렇게 찍혔는지 알 수 없다.
+    /* 숫자만 보여주면 그게 무슨 뜻인지 읽는 사람이 해석해야 한다.
+       결론을 말로 하고, 어느 칸에 있는지를 눈금으로 보여준다. */
+    var STEPS = ['📉 하락', '➖ 평탄', '📈 상승', '🔥 급등'];
+    var here = t.label === '하락' || t.label === '피크 지남' ? 0
+             : t.label === '상승' ? 2
+             : (t.label === '급등' || t.label === '신규 급등') ? 3
+             : t.label === '평탄' ? 1 : -1;
+    var muted = t.trust === '무시' || here < 0;
+    var scale = '<div class="kw-scale' + (muted ? ' off' : '') + '">' +
+      STEPS.map(function(x, i){
+        return '<span class="' + (!muted && i === here ? 'on' + (i === 3 ? ' hot' : '') : '') + '">' + x + '</span>';
+      }).join('') + '</div>';
+
+    // 평소 대비 얼마인지 — 배수 대신 사람이 읽는 말로
+    function howMuch(m){
+      if(m == null) return '';
+      if(m >= 2) return '평소의 <b>' + (m >= 10 ? Math.round(m) : m) + '배</b>';
+      if(m >= 1.05) return '평소의 <b>' + m + '배</b>';
+      if(m > 0.95) return '<b>평소와 비슷한</b> 수준';
+      return '평소의 <b>' + Math.round(m * 100) + '%</b> 수준';
+    }
+
     var why = '';
-    if(t.icon === '🚀'){
-      why = '이 키워드는 <b>' + esc(t.period || '') + '</b> 동안 거의 검색이 없다가 최근에 새로 붙었어요.';
-    }else if(t.score != null && t.trust !== '무시'){
-      why = '최근 7일이 평소보다 <b>' + t.score + '</b>만큼 벗어났어요' +
-            (t.multiple ? ' (평균 ' + t.multiple + '배)' : '') + '. ' + esc(t.note || '') +
-            '<br><span style="opacity:.75">판정 기준 — ' + esc(t.method || '') + ' · 3.5 이상 급등, 2.0 이상 상승</span>';
+    if(t.trust === '무시'){
+      why = '';                                   // ⚠️ 줄만 남긴다
+    }else if(t.icon === '🚀'){
+      why = '<b>없던 검색이 새로 생겼어요.</b> 최근 두 달 동안 거의 안 찾던 말인데 지금 붙기 시작했어요.';
+    }else if(t.label === '피크 지남'){
+      why = '최근 7일 검색량이 ' + howMuch(t.multiple) + '이에요.<br>' +
+            '<b>예전에 크게 떴다가 지금은 가라앉았어요.</b> 그때 쓰셨어야 하는 키워드예요.';
+    }else if(t.label === '급등'){
+      why = '최근 7일 검색량이 ' + howMuch(t.multiple) + '이에요.<br>' +
+            '<b>이 키워드가 평소 움직이던 폭을 크게 벗어났어요.</b> 지금 쓰기 좋은 타이밍이에요.';
+    }else if(t.label === '상승'){
+      why = '최근 7일 검색량이 ' + howMuch(t.multiple) + '이에요.<br>' +
+            '<b>평소보다 눈에 띄게 올랐어요.</b> 더 오를지 하루이틀 보셔도 좋아요.';
+    }else if(t.label === '하락'){
+      why = '최근 7일 검색량이 ' + howMuch(t.multiple) + '이에요.<br>' +
+            '<b>평소보다 눈에 띄게 줄었어요.</b>';
+    }else if(t.label === '평탄'){
+      why = '최근 7일 검색량이 ' + howMuch(t.multiple) + '이에요.<br>' +
+            '<b>이 키워드가 평소 오르내리는 폭 안이에요.</b> 꾸준히 찾는 말이라 급할 건 없어요.';
     }
     var tn = trustNote(t, d.total);
     if(tn) why = '<b style="color:var(--requested-ink)">⚠️ ' + tn + '</b>' + (why ? '<br>' + why : '');
@@ -2216,8 +2276,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '<div class="kw-legend">' +
         '<span><i class="dot pc"></i>PC <b>' + comma(d.pc) + '</b> (' + (d.pc_pct||0) + '%)</span>' +
         '<span><i class="dot mo"></i>모바일 <b>' + comma(d.mobile) + '</b> (' + (d.mobile_pct||0) + '%)</span>' +
-      '</div>' +
-      '<div class="kw-foot">경쟁 정도 <b>' + esc(d.comp || '—') + '</b> · 검색량 기간 ' + esc(d.period || '') +
+      '</div>' + scale +
+      '<div class="kw-foot"' + (t.method ? ' title="' + esc(t.method) + (t.score != null ? ' / 점수 ' + t.score : '') + '"' : '') +
+        '>경쟁 정도 <b>' + esc(d.comp || '—') + '</b> <span style="opacity:.7">(광고 기준)</span> · 검색량 기간 ' + esc(d.period || '') +
         (why ? '<br>' + why : '') +
         (t.peak_date && t.trust !== '무시' ? '<br>최근 60일 최고점 ' + esc(t.peak_date) : '') +
         (t.notice ? '<br>' + esc(t.notice) : '') +

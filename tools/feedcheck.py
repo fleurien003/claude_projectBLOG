@@ -4,7 +4,8 @@
 발행 전에 규칙을 지켰는지 숫자로 확인한다. 근거는 CLAUDE.md '홈피드 규칙'.
 
   python3 tools/feedcheck.py <초안.txt> --keyword 장원영가방
-  python3 tools/feedcheck.py <카드.json>          # items 문서면 카드에서 키워드를 읽는다
+  python3 tools/feedcheck.py <카드.json>          # items 문서면 카드에서 키워드·분류를 읽는다
+  python3 tools/feedcheck.py <초안.txt> --keyword 설악산단풍 --category travel_spot
 
 2026-09-23 신설. 만든 계기는 9/21 장원영 카드였다.
 카드의 main_keyword 가 '장원영가방'인데 초안은 '장원영 가방'(띄어쓰기)으로 써서
@@ -27,17 +28,31 @@ KEYWORD_JOINED_MIN = 3   # 그중 붙인 형태로 최소 몇 번
 FLOURISH_MAX = 4          # ~ 와 ! 합계
 MAX_PER_PARA = 2          # 한 문단 문장 수
 
+# 카테고리별 제목 공식 (2026-09-23 르나 승인, docs/06_제목_첫단어_키워드_검증.md)
+# 네이버 블로그 탭 상위 제목 161개 실측. (앞에 붙어도 되는 말, 설명)
+#   연예만 "키워드 맨 앞 + 훅". 여행명소는 연도, 컬리는 판매처가 먼저 온다.
+TITLE_HEAD = {
+    'celeb':        (r'',                          '메인 키워드로 시작 + 훅'),
+    'ott':          (r'(넷플릭스|디즈니\+?|티빙|쿠팡플레이|웨이브|드라마)?', '(플랫폼) 작품명으로 시작'),
+    'finance':      (r'(20\d\d년?)?',                '(2026년) 제도명으로 시작'),
+    'travel_issue': (r'(20\d\d|\d{1,2}월)*',          '(2026·9월) 연휴명+행동으로 시작'),
+    'travel_spot':  (r'20\d\d',                     '"2026 + 명소명"으로 시작'),
+    'kurly_pick':   (r'컬리',                       '"컬리 + 품목"으로 시작'),
+}
+
 
 def load(path):
-    """초안 txt 또는 items 카드 json 을 받아 (본문, 메인키워드) 로 돌려준다."""
+    """초안 txt 또는 items 카드 json 을 받아 (본문, 메인키워드, 분류) 로 돌려준다."""
     raw = open(path, encoding='utf-8').read()
     if path.endswith('.json'):
         d = json.loads(raw)
-        return d.get('draft_content', '') or '', d.get('main_keyword', '') or ''
-    return raw, ''
+        d = d.get('data', d)
+        return (d.get('draft_content', '') or '', d.get('main_keyword', '') or '',
+                d.get('category_key', '') or '')
+    return raw, '', ''
 
 
-def check(text, keyword):
+def check(text, keyword, category=''):
     lines = [l.rstrip() for l in text.replace('\r', '').split('\n')]
     nonblank = [l.strip() for l in lines if l.strip()]
     if not nonblank:
@@ -93,6 +108,16 @@ def check(text, keyword):
         in_title = joined in squash(title)
         spaced_in_title = in_title and joined not in title
         judge(in_title, '제목에 키워드', title[:50])
+
+        cat = 'celeb' if category.startswith('celeb') else category
+        if cat in TITLE_HEAD and in_title:
+            prefix, desc = TITLE_HEAD[cat]
+            head = squash(title)
+            # 컬리는 판매처가 먼저라 키워드 자체는 "컬리" 바로 뒤에 온다
+            ok_head = re.match(prefix + re.escape(joined), head) is not None
+            if cat == 'kurly_pick':
+                ok_head = head.startswith('컬리') and joined in head[:len('컬리') + len(joined) + 4]
+            judge(ok_head, '제목 공식', f'{desc} — {title[:40]}')
         if in_title:
             flag(spaced_in_title, '제목 띄어쓰기',
                  '띄운 형태로 들어감 ✓' if spaced_in_title else '붙여 썼음 — 제목은 띄우는 쪽이 읽기 좋다')
@@ -123,11 +148,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('path')
     ap.add_argument('--keyword', default='')
+    ap.add_argument('--category', default='', help='celeb_fashion·ott·finance·travel_issue·travel_spot·kurly_pick')
     a = ap.parse_args()
 
-    text, kw = load(a.path)
+    text, kw, cat = load(a.path)
     kw = a.keyword or kw
-    bad, ok, warn = check(text, kw)
+    cat = a.category or cat
+    bad, ok, warn = check(text, kw, cat)
 
     if bad:
         print(f'❌ {a.path} — {len(bad)}개 항목 위반\n')
