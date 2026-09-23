@@ -2224,7 +2224,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   /* 중계 서버는 Render 무료 플랜이라 15분쯤 놀면 잠든다.
      깨어나는 동안(또는 배포 중 재시작 동안)에는 연결이 아예 거부되므로,
      한 번 실패했다고 포기하지 않고 기다렸다가 다시 부른다. */
-  var KW_TRIES = [0, 3000, 8000];   // 즉시 · 3초 뒤 · 8초 뒤
+  var KW_TRIES = [0, 3000];   // 즉시 · 3초 뒤 (막혀 있으면 즉시 실패하므로 길게 끌 이유가 없다)
 
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
@@ -2250,8 +2250,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         clearTimeout(timer);
       }
     }
-    return { ok:false, msg:'중계 서버가 응답하지 않아요 (' + KW_TRIES.length + '번 시도).',
-             retry:true, why: lastErr && lastErr.name === 'AbortError' ? '90초를 기다려도 답이 없었어요.' : '' };
+    // 원인을 감추지 않는다. TypeError 면 브라우저가 막은 것이고,
+    // AbortError 면 서버가 느린 것이다. 둘은 해결 방법이 완전히 다르다.
+    var name = (lastErr && lastErr.name) || 'Error';
+    var why = name === 'AbortError' ? '90초를 기다려도 답이 없었어요 (서버가 느림).'
+            : name === 'TypeError'  ? '브라우저가 외부 호출을 막았어요 (서버 문제 아님).'
+            : '';
+    return { ok:false, msg:'조회 실패 — ' + name + ': ' + ((lastErr && lastErr.message) || '알 수 없음'),
+             retry:true, why: why, diag:true };
   }
 
   async function kwLookup(word){
@@ -2278,11 +2284,37 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       return;
     }
     document.getElementById('kwRes').hidden = true;
-    state.innerHTML = esc(res.msg) + (res.why ? ' ' + esc(res.why) : '') +
+    state.innerHTML = esc(res.msg) + (res.why ? '<br><b>' + esc(res.why) + '</b>' : '') +
       (res.retry ? '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>' +
-                   '<br><span style="opacity:.8">배포 직후라면 1~2분 뒤에 됩니다.</span>' : '');
+                   ' <button type="button" class="btn-sm" id="kwDiag" style="margin-top:6px">진단</button>' : '');
     var rb = document.getElementById('kwRetry');
     if(rb) rb.onclick = function(){ kwLookup(q); };
+    var dbn = document.getElementById('kwDiag');
+    if(dbn) dbn.onclick = kwDiagnose;
+  }
+
+  /* 진단 — 우리 서버만 막힌 건지, 바깥 호출이 전부 막힌 건지 한 번에 가른다.
+     둘 다 실패하면 아티팩트 샌드박스가 막는 것이고, 그러면 구조를 바꿔야 한다. */
+  async function kwDiagnose(){
+    var state = document.getElementById('kwState');
+    state.textContent = '진단 중...';
+    var targets = [
+      ['중계 서버', RELAY + '/health'],
+      ['바깥 아무 곳', 'https://api.github.com/zen']
+    ];
+    var lines = [];
+    for(var i = 0; i < targets.length; i++){
+      var ctl = new AbortController();
+      var t = setTimeout(function(){ ctl.abort(); }, 15000);
+      try{
+        var r = await fetch(targets[i][1], { signal: ctl.signal });
+        lines.push('✅ ' + targets[i][0] + ' — HTTP ' + r.status);
+      }catch(e){
+        lines.push('❌ ' + targets[i][0] + ' — ' + e.name + ': ' + (e.message || ''));
+      }finally{ clearTimeout(t); }
+    }
+    lines.push('온라인 상태: ' + (navigator.onLine ? '연결됨' : '끊김'));
+    state.innerHTML = lines.map(esc).join('<br>');
   }
 
   document.getElementById('kwForm').addEventListener('submit', function(e){
