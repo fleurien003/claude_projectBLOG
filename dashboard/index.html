@@ -2180,15 +2180,16 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   function kwRender(d){
     var res = document.getElementById('kwRes');
     var t = d.trend || {};
+    var showMult = t.multiple && t.trust !== '무시';   // 판정 보류인데 배수를 띄우면 앞뒤가 안 맞는다
     var spike = t.icon
       ? '<span class="kw-spike ' + spikeClass(t.icon) + '">' + t.icon + ' ' + esc(t.label) +
-        (t.multiple ? ' ' + t.multiple + '배' : '') + '</span>'
+        (showMult ? ' ' + t.multiple + '배' : '') + '</span>'
       : '';
     // 급등 근거를 한 줄로 풀어 쓴다. 숫자만 보여주면 왜 그렇게 찍혔는지 알 수 없다.
     var why = '';
     if(t.icon === '🚀'){
       why = '이 키워드는 <b>' + esc(t.period || '') + '</b> 동안 거의 검색이 없다가 최근에 새로 붙었어요.';
-    }else if(t.score != null){
+    }else if(t.score != null && t.trust !== '무시'){
       why = '최근 7일이 평소보다 <b>' + t.score + '</b>만큼 벗어났어요' +
             (t.multiple ? ' (평균 ' + t.multiple + '배)' : '') + '. ' + esc(t.note || '') +
             '<br><span style="opacity:.75">판정 기준 — ' + esc(t.method || '') + ' · 3.5 이상 급등, 2.0 이상 상승</span>';
@@ -2218,7 +2219,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '</div>' +
       '<div class="kw-foot">경쟁 정도 <b>' + esc(d.comp || '—') + '</b> · 검색량 기간 ' + esc(d.period || '') +
         (why ? '<br>' + why : '') +
-        (t.peak_date ? '<br>최근 60일 최고점 ' + esc(t.peak_date) : '') +
+        (t.peak_date && t.trust !== '무시' ? '<br>최근 60일 최고점 ' + esc(t.peak_date) : '') +
         (t.notice ? '<br>' + esc(t.notice) : '') +
         (t.error ? '<br>추이를 못 가져왔어요 — 검색량 수치만 보시면 돼요' : '') +
       '</div>' + rel;
