@@ -2321,13 +2321,44 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       var f = mcpFix(e);
       document.getElementById('kwRes').hidden = true;
       state.innerHTML = esc(f.msg) + (f.fix ? '<br>' + f.fix : '') +
-        (e && e.message && f.code === 'tool_error' ? '<br><span style="opacity:.75">' + esc(e.message) + '</span>' : '') +
-        '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>';
+        (e && e.message ? '<br><span style="opacity:.75">' + esc(e.message) + '</span>' : '') +
+        '<br><span style="opacity:.6">코드: ' + esc(f.code) + '</span>' +
+        '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>' +
+        ' <button type="button" class="btn-sm" id="kwDiag" style="margin-top:6px">연결 확인</button>';
       var rb = document.getElementById('kwRetry');
       if(rb) rb.onclick = function(){ kwLookup(q); };
+      var db2 = document.getElementById('kwDiag');
+      if(db2) db2.onclick = kwDiagnose;
     }finally{
       clearTimeout(slow);
       kwBusy = false; btn.disabled = false;
+    }
+  }
+
+  /* 페이지가 실제로 무엇을 보고 있는지 그대로 찍는다.
+     이름이 다른지, 연결이 안 된 건지, 도구가 없는 건지가 여기서 갈린다. */
+  async function kwDiagnose(){
+    var state = document.getElementById('kwState');
+    state.textContent = '연결 확인 중...';
+    if(!mcpNs){ state.textContent = '이 화면은 커넥터를 쓸 수 없어요 (claude.use("mcp") 가 비어 있음).'; return; }
+    try{
+      var r = await mcpNs.listTools();
+      var lines = ['페이지가 찾는 이름 : <b>' + MCP_SERVER + '</b>'];
+      var servers = (r && r.servers) || [];
+      if(!servers.length){
+        lines.push('❌ 보이는 커넥터가 없어요.');
+      }else{
+        servers.forEach(function(sv){
+          var names = (sv.tools || []).map(function(t){ return t.name; });
+          lines.push((sv.server === MCP_SERVER ? '✅ ' : '• ') + '<b>' + esc(sv.server) + '</b>' +
+            ' · 상태 ' + esc(sv.authStatus || '?') +
+            ' · 도구 ' + names.length + '개' + (names.length ? ' (' + esc(names.join(', ')) + ')' : ''));
+        });
+      }
+      state.innerHTML = lines.join('<br>');
+    }catch(e){
+      var f = mcpFix(e);
+      state.innerHTML = '연결 확인 실패 — ' + esc(f.code) + '<br>' + esc((e && e.message) || '');
     }
   }
 
