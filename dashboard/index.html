@@ -2148,9 +2148,13 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   });
 
   /* ─────────────── 키워드 검색량 ───────────────
-     중계 서버의 /keyword 를 브라우저가 직접 부른다. Claude 토큰은 안 든다.
-     Render 무료 플랜은 놀고 있으면 잠들기 때문에 첫 호출이 40초까지 걸릴 수 있다. */
-  var RELAY = 'https://naver-blog-helper.onrender.com';
+     아티팩트 샌드박스는 fetch() 로 바깥을 못 부른다. 2026-09-23에 확인했다 —
+     우리 중계 서버도, api.github.com 도 전부 TypeError: Failed to fetch 였다.
+     페이지가 바깥에 닿는 통로는 "뷰어의 claude.ai 커넥터" 하나뿐이라 MCP 로 부른다.
+     호출은 뷰어 자격증명으로 나가고, 이 코드는 토큰을 보지 않는다. */
+  var MCP_SERVER = 'naver-blog-helper';
+  var mcpNs = null;          // claude.use('mcp') 결과. null 이면 이 화면에서는 못 쓴다
+  var mcpChecked = false;
   var kwBusy = false;
 
   function comma(n){ return Number(n||0).toLocaleString('ko-KR'); }
@@ -2221,43 +2225,68 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     res.hidden = false;
   }
 
-  /* 중계 서버는 Render 무료 플랜이라 15분쯤 놀면 잠든다.
-     깨어나는 동안(또는 배포 중 재시작 동안)에는 연결이 아예 거부되므로,
-     한 번 실패했다고 포기하지 않고 기다렸다가 다시 부른다. */
-  var KW_TRIES = [0, 3000];   // 즉시 · 3초 뒤 (막혀 있으면 즉시 실패하므로 길게 끌 이유가 없다)
+  /* 실패는 코드마다 고치는 방법이 다르다. 하나로 뭉뚱그리면
+     정작 화면을 살릴 수 있는 행동이 안 보인다. 그래서 코드별로 다르게 안내한다. */
+  var MCP_FIX = {
+    server_not_connected: ['커넥터가 연결돼 있지 않아요.',
+      'claude.ai → 설정 → 커넥터에서 <b>' + MCP_SERVER + '</b> 를 추가해주세요.'],
+    needs_reauth: ['커넥터 연결이 만료됐어요.',
+      'claude.ai → 설정 → 커넥터에서 <b>' + MCP_SERVER + '</b> 를 다시 연결해주세요.'],
+    selection_required: ['같은 이름의 커넥터가 여러 개예요.',
+      'claude.ai 에서 어느 것을 쓸지 한 번 골라주시면 돼요.'],
+    not_in_manifest: ['이 화면에서 커넥터 사용이 꺼져 있어요.',
+      '조회할 때 뜨는 허용 창에서 <b>허용</b>을 눌러주세요.'],
+    blocked_by_policy: ['조직 정책이 이 도구를 막고 있어요.', ''],
+    approval_required: ['호출마다 승인이 필요한 설정이에요.', '아티팩트에서는 아직 지원되지 않아요.'],
+    server_unavailable: ['중계 서버가 답하지 않아요.',
+      'Render 무료 플랜이라 자고 있었을 수 있어요. 잠시 뒤 다시 눌러주세요.'],
+    rate_limited: ['잠시 너무 많이 불렀어요.', '조금 뒤에 다시 시도해주세요.'],
+    tool_error: ['중계 서버가 오류를 돌려줬어요.', ''],
+    bad_request: ['요청이 잘못됐어요.', ''],
+    cancelled: ['조회를 멈췄어요.', ''],
+    not_granted: ['이 화면에서는 커넥터를 쓸 수 없어요.', 'claude.ai 에서 대시보드를 열어주세요.'],
+    capability_disabled: ['이 화면에서는 커넥터를 쓸 수 없어요.', 'claude.ai 에서 대시보드를 열어주세요.'],
+    capability_removed: ['이 화면에서는 커넥터를 쓸 수 없어요.', 'claude.ai 에서 대시보드를 열어주세요.'],
+    consent_required: ['커넥터 사용을 아직 허용하지 않으셨어요.',
+      '다시 눌러보시면 허용 창이 떠요.']
+  };
+
+  function mcpFix(e){
+    var code = (e && e.code) || 'upstream_error';
+    var f = MCP_FIX[code] || ['조회하지 못했어요.', (e && e.message) ? esc(e.message) : ''];
+    return { code: code, msg: f[0], fix: f[1], retryable: !!(e && e.retryable), after: (e && e.retryAfterMs) || 0 };
+  }
 
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
-  async function fetchKeyword(q, onStage){
-    var lastErr = null;
-    for(var i = 0; i < KW_TRIES.length; i++){
-      if(KW_TRIES[i]){
-        onStage('서버가 자고 있었나 봐요. ' + (KW_TRIES[i]/1000) + '초 뒤 다시 부를게요 (' + (i+1) + '/' + KW_TRIES.length + ')');
-        await sleep(KW_TRIES[i]);
-      }
-      // 무료 서버가 깨어나는 데 최대 1분쯤 걸린다. 그보다 넉넉히 기다린다.
-      var ctl = new AbortController();
-      var timer = setTimeout(function(){ ctl.abort(); }, 90000);
-      try{
-        var r = await fetch(RELAY + '/keyword?q=' + encodeURIComponent(q), { signal: ctl.signal });
-        var d = await r.json();
-        if(r.ok && !d.error) return { ok:true, data:d };
-        // 서버가 살아서 답했는데 내용이 실패면 다시 불러도 같다. 바로 끝낸다.
-        return { ok:false, msg: d.error || d.detail || ('서버가 ' + r.status + ' 로 답했어요') };
-      }catch(e){
-        lastErr = e;
-      }finally{
-        clearTimeout(timer);
-      }
+  async function initKeywordMcp(){
+    if(mcpChecked) return;
+    mcpChecked = true;
+    try{ mcpNs = await claude.use('mcp'); }catch(e){ mcpNs = null; }
+    var state = document.getElementById('kwState');
+    if(!state) return;
+    if(!mcpNs){
+      state.innerHTML = '이 화면에서는 키워드 조회를 쓸 수 없어요. ' +
+        '<b>claude.ai 에서 대시보드를 열면</b> 커넥터로 조회할 수 있어요.';
+      var b = document.getElementById('kwBtn'); if(b) b.disabled = true;
     }
-    // 원인을 감추지 않는다. TypeError 면 브라우저가 막은 것이고,
-    // AbortError 면 서버가 느린 것이다. 둘은 해결 방법이 완전히 다르다.
-    var name = (lastErr && lastErr.name) || 'Error';
-    var why = name === 'AbortError' ? '90초를 기다려도 답이 없었어요 (서버가 느림).'
-            : name === 'TypeError'  ? '브라우저가 외부 호출을 막았어요 (서버 문제 아님).'
-            : '';
-    return { ok:false, msg:'조회 실패 — ' + name + ': ' + ((lastErr && lastErr.message) || '알 수 없음'),
-             retry:true, why: why, diag:true };
+  }
+
+  /* 실제 호출. retryable 로 표시된 실패만 한 번 더 부른다 (읽기 전용이라 안전).
+     staleTime 을 둬서 같은 키워드를 연달아 치면 네이버를 다시 때리지 않는다. */
+  async function callKeyword(q, allowRetry){
+    try{
+      var res = await mcpNs.callTool(MCP_SERVER, 'keyword_volume', { q: q },
+                                     { cache: { staleTime: 300000 } });
+      return res;
+    }catch(e){
+      var f = mcpFix(e);
+      if(allowRetry && f.retryable){
+        await sleep(Math.min(f.after || 2500, 15000) + Math.random() * 800);
+        return callKeyword(q, false);
+      }
+      throw e;
+    }
   }
 
   async function kwLookup(word){
@@ -2268,53 +2297,38 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
 
     var state = document.getElementById('kwState');
     var btn = document.getElementById('kwBtn');
+
+    await initKeywordMcp();
+    if(!mcpNs) return;
+
     kwBusy = true; btn.disabled = true;
     state.textContent = '조회 중...';
     var slow = setTimeout(function(){
-      if(kwBusy) state.textContent = '서버를 깨우는 중이에요. 처음 한 번만 오래 걸려요 (최대 1분)...';
-    }, 4000);
+      if(kwBusy) state.textContent = '중계 서버를 깨우는 중이에요. 처음 한 번만 오래 걸려요...';
+    }, 5000);
 
-    var res = await fetchKeyword(q, function(msg){ clearTimeout(slow); state.textContent = msg; });
-    clearTimeout(slow);
-    kwBusy = false; btn.disabled = false;
-
-    if(res.ok){
-      kwRender(res.data);
-      state.textContent = '네이버 검색광고·데이터랩 기준';
-      return;
+    try{
+      var res = await callKeyword(q, true);
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object'){ throw { code: 'tool_error', message: '응답을 읽지 못했어요.' }; }
+      if(d.error){ throw { code: 'tool_error', message: d.error }; }
+      kwRender(d);
+      var when = res.cache && res.cache.storedAt
+        ? ' · ' + new Date(res.cache.storedAt).toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'}) + ' 기준'
+        : '';
+      state.textContent = '네이버 검색광고·데이터랩 기준' + when;
+    }catch(e){
+      var f = mcpFix(e);
+      document.getElementById('kwRes').hidden = true;
+      state.innerHTML = esc(f.msg) + (f.fix ? '<br>' + f.fix : '') +
+        (e && e.message && f.code === 'tool_error' ? '<br><span style="opacity:.75">' + esc(e.message) + '</span>' : '') +
+        '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>';
+      var rb = document.getElementById('kwRetry');
+      if(rb) rb.onclick = function(){ kwLookup(q); };
+    }finally{
+      clearTimeout(slow);
+      kwBusy = false; btn.disabled = false;
     }
-    document.getElementById('kwRes').hidden = true;
-    state.innerHTML = esc(res.msg) + (res.why ? '<br><b>' + esc(res.why) + '</b>' : '') +
-      (res.retry ? '<br><button type="button" class="btn-sm" id="kwRetry" style="margin-top:6px">다시 시도</button>' +
-                   ' <button type="button" class="btn-sm" id="kwDiag" style="margin-top:6px">진단</button>' : '');
-    var rb = document.getElementById('kwRetry');
-    if(rb) rb.onclick = function(){ kwLookup(q); };
-    var dbn = document.getElementById('kwDiag');
-    if(dbn) dbn.onclick = kwDiagnose;
-  }
-
-  /* 진단 — 우리 서버만 막힌 건지, 바깥 호출이 전부 막힌 건지 한 번에 가른다.
-     둘 다 실패하면 아티팩트 샌드박스가 막는 것이고, 그러면 구조를 바꿔야 한다. */
-  async function kwDiagnose(){
-    var state = document.getElementById('kwState');
-    state.textContent = '진단 중...';
-    var targets = [
-      ['중계 서버', RELAY + '/health'],
-      ['바깥 아무 곳', 'https://api.github.com/zen']
-    ];
-    var lines = [];
-    for(var i = 0; i < targets.length; i++){
-      var ctl = new AbortController();
-      var t = setTimeout(function(){ ctl.abort(); }, 15000);
-      try{
-        var r = await fetch(targets[i][1], { signal: ctl.signal });
-        lines.push('✅ ' + targets[i][0] + ' — HTTP ' + r.status);
-      }catch(e){
-        lines.push('❌ ' + targets[i][0] + ' — ' + e.name + ': ' + (e.message || ''));
-      }finally{ clearTimeout(t); }
-    }
-    lines.push('온라인 상태: ' + (navigator.onLine ? '연결됨' : '끊김'));
-    state.innerHTML = lines.map(esc).join('<br>');
   }
 
   document.getElementById('kwForm').addEventListener('submit', function(e){
@@ -2384,6 +2398,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
 
   async function boot(){
     try{ claude.use('sample').then(function(f){ sampleFn = f; if(lastDetail && detailId) fillDetail(lastDetail); }, function(){}); }catch(e){}
+    initKeywordMcp();
     window.addEventListener('hashchange', route);
     route();
     try{
