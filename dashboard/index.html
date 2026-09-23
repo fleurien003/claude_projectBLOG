@@ -2162,6 +2162,17 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     return '';
   }
 
+  /* 검색량이 적으면 급등 판정이 잡음이다. 하루 n건의 순수 잡음은 1/√n 이라
+     월 460회(하루 15건)면 아무 일 없어도 ±26% 씩 흔들린다. */
+  function trustNote(t, total){
+    if(t.trust === '무시') return '월 ' + comma(total) + '회라 표본이 적어요. 하루 ' +
+      Math.round(total/30) + '건 수준이면 잡음만 ±' + Math.round(100/Math.sqrt(Math.max(total/30,1))) +
+      '% 라 급등 판정을 믿을 수 없어요.';
+    if(t.trust === '참고') return '월 ' + comma(total) + '회라 판정은 참고만 하세요 (잡음 ±' +
+      Math.round(100/Math.sqrt(Math.max(total/30,1))) + '%). 2배 이상 급등이면 유효해요.';
+    return '';
+  }
+
   function kwRender(d){
     var res = document.getElementById('kwRes');
     var t = d.trend || {};
@@ -2178,6 +2189,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
             (t.multiple ? ' (평균 ' + t.multiple + '배)' : '') + '. ' + esc(t.note || '') +
             '<br><span style="opacity:.75">판정 기준 — ' + esc(t.method || '') + ' · 3.5 이상 급등, 2.0 이상 상승</span>';
     }
+    var tn = trustNote(t, d.total);
+    if(tn) why = '<b style="color:var(--requested-ink)">⚠️ ' + tn + '</b>' + (why ? '<br>' + why : '');
 
     var rel = '';
     if(d.related && d.related.length){
