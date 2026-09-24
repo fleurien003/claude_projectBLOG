@@ -319,14 +319,14 @@
 <div class="wrap" id="mainView">
   <header class="top">
     <div class="eyebrow">르나성공시대 · 블로그 대시보드</div>
-    <h1 id="mainTitle">🔥 홈피드 트렌드 대시보드</h1>
+    <h1 id="mainTitle">🔥 TIDINGS</h1>
     <div class="desc" id="mainDesc">매일 아침 8시에 카테고리별 트렌드 후보를 올려요. 쓸 주제를 골라주세요.</div>
   </header>
 
   <nav class="seg" id="seg" aria-label="섹션">
     <button type="button" data-sec="home" class="active">🏠 홈</button>
-    <button type="button" data-sec="feed">🔥 홈피드</button>
-    <button type="button" data-sec="camp">📝 체험단 <span class="count" id="campCount" hidden></span></button>
+    <button type="button" data-sec="feed">🔥 TIDINGS</button>
+    <button type="button" data-sec="camp">📝 EL.LIGHT <span class="count" id="campCount" hidden></span></button>
   </nav>
 
   <div class="kwbox">
@@ -413,14 +413,14 @@
 
 <div id="campPage" hidden>
   <div class="editor-wrap">
-    <button type="button" class="editor-back" id="campBack">← 체험단 목록</button>
+    <button type="button" class="editor-back" id="campBack">← EL.LIGHT 목록</button>
     <div id="campDetail"><div class="empty">불러오는 중...</div></div>
   </div>
 </div>
 
 <div id="tplPage" hidden>
   <div class="editor-wrap">
-    <button type="button" class="editor-back" id="tplBack">← 체험단 목록</button>
+    <button type="button" class="editor-back" id="tplBack">← EL.LIGHT 목록</button>
     <h1 class="d-title">📚 프롬프트 템플릿</h1>
     <div class="auto-line">새 체험단은 유형에 맞는 템플릿을 골라 자동화가 1️⃣~5️⃣를 채워요. 여기서 고치면 다음 자동 작성부터 반영돼요. 경험 칸(검색형 6️⃣ · 판매형 3️⃣)은 체험단마다 내가 쓴 받은 것·후기로 채워져요.</div>
     <div id="tplList"><div class="empty">불러오는 중...</div></div>
@@ -840,6 +840,22 @@
     return TITLE_RULE[/^celeb/.test(k) ? 'celeb' : k] || '';
   }
 
+  /* 제목 훅 — 2026-09-24 르나 승인. 키워드 자리는 위 공식, 그 뒤에 훅을 하나만 붙인다.
+     근거: Upworthy 실험 8,977건(주제는 구체적으로·답은 반만), 2.3만 건(부정어 1개당 CTR +2.3%),
+     구글 500만 건(질문형 +14.1%). 괄호는 르나가 뺐다. docs/07_홈피드_클릭률_제목_리서치.md
+     고르는 순서는 조건이 까다로운 것부터다(제가 정한 순서 — 발행 성적 보고 조정). */
+  var HOOK_NAME = { A:'반만 말하기', B:'손해 피하기', C:'질문', D:'숫자' };
+  var HOOK_RULE = [
+    '- 제목의 키워드 자리 뒤에는 **훅을 딱 하나** 붙여. [주제 정보]를 보고 아래 순서대로 처음 맞는 것을 골라.',
+    '  D 숫자 — 본문이 여러 곳·여러 개를 나열하면 그 개수를 제목에 ("근교 4곳", "5가지"). 제목에 쓴 개수만큼 본문에 꼭 넣어.',
+    '  B 손해 피하기 — 마감·가격 인상·매진·인파처럼 놓치면 손해인 사실이 [주제 정보]에 있으면 ("개막하고 가면 늦어요", "모르고 가면 손해"). 이 부정·손해 표현은 홈피드 제목에서만 쓰는 예외야.',
+    '  C 질문 — 사람마다 답이 다른 주제면 ("우리 집도 해당될까?", "아이랑 가도 될까?")',
+    '  A 반만 말하기 — 그 외. 주제는 구체적으로, 답은 숨겨 ("~했더니..", "~인 이유"). 답까지 다 말해버리면 클릭이 떨어져.',
+    '- 훅에 들어가는 숫자·마감·사실은 [주제 정보]에 있는 것만. 지어내지 마.',
+    '- **훅의 답은 1번이나 2번 소주제에서 바로 풀어줘.** 제목에서 약속한 걸 본문 앞쪽에서 안 주면 낚시가 되고 체류시간이 떨어져.',
+    '- 괄호 【】 [ ] ( ) 는 제목에 쓰지 마.'
+  ].join('\n');
+
   function buildFeedPrompt(it, revise){
     var links = (it.image_links || []).map(function(x){ return x && x.label; }).filter(Boolean).join(', ');
     var skeleton = feedSkeleton(it);
@@ -857,6 +873,8 @@
       '[형식]',
       tRule ? '- 첫 줄: 제목 한 줄. 이 카테고리 제목은 ' + tRule + ' 낚시 느낌은 피해.'
             : '- 첫 줄: 제목 한 줄. 검색되는 키워드를 앞쪽에 넣되 낚시 느낌은 피해.',
+      HOOK_RULE,
+      HOOK_NAME[it.hook_type] ? '- 이 카드는 **' + it.hook_type + ' ' + HOOK_NAME[it.hook_type] + '** 훅으로 정해져 있어. 그 훅으로 써.' : '',
       '- 그다음 빈 줄, 도입부(2~4문장, 왜 지금 이게 화제인지).',
       '- **내 시점 날짜는 쓰지 마.** "지난 주말에", "어제 기사 보니까", "9월 20일 보도에 따르면" 같은 표현 금지.',
       '- 다만 **독자에게 필요한 날짜는 써도 돼.** 공개일·개막일·축제 기간·마감일처럼 독자가 알아야 움직일 수 있는 날짜가 그것이야.',
@@ -908,6 +926,7 @@
       '  · 본문 1,300~1,700자   · 소주제 3~5개   · 해시태그 정확히 30개(중복 없이)',
       (it.main_keyword ? '  · 메인 키워드 "' + it.main_keyword + '" 를 띄어쓰기 그대로 본문에 5회 이상, 제목에도 1회' : '  · 제목에 검색되는 키워드'),
       tRule ? '  · 제목이 위 [형식]의 카테고리 제목 공식대로 시작하는지' : '',
+      '  · 제목 훅이 하나뿐인지, 그 답이 1·2번 소주제에 있는지, 제목에 괄호가 없는지',
       '  · 3문장짜리 문단이 없는지   · `~` 와 `!` 합쳐서 4개 이하   · #, *, > 같은 기호 없는지',
       '',
       '글만 출력해. 설명이나 메모는 쓰지 마.'
@@ -2156,7 +2175,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('homePosted').innerHTML = posted.length
       ? posted.slice(0, 8).map(function(x){
           return '<a class="sec-item" href="' + esc(safeUrl(x.posted_url)) + '" target="_blank" rel="noopener">' +
-                 '<span class="sec-t">' + (x.topic ? '홈피드' : '체험단') + '</span>' +
+                 '<span class="sec-t">' + (x.topic ? 'TIDINGS' : 'EL.LIGHT') + '</span>' +
                  '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
                  '<span class="sec-c">' + (x.posted_at ? new Date(x.posted_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '') + '</span></a>'; }).join('')
       : '<div class="save-status">발행한 글이 여기 쌓여요.</div>';
@@ -2446,8 +2465,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('campSection').hidden = sec !== 'camp';
     document.querySelectorAll('#seg button').forEach(function(b){ b.classList.toggle('active', b.dataset.sec === sec); });
     var t = { home:['🏠 르나 블로그 홈', '오늘 뭘 해야 하는지, 글이 어떻게 되고 있는지 한눈에 봐요.'],
-              feed:['🔥 홈피드 트렌드', '매일 아침 8시에 올라오는 주제 중 쓸 것을 골라주세요.'],
-              camp:['📝 체험단 관리', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'] }[sec] || [];
+              feed:['🔥 TIDINGS', '매일 아침 8시에 올라오는 주제 중 쓸 것을 골라주세요.'],
+              camp:['📝 EL.LIGHT', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'] }[sec] || [];
     document.getElementById('mainTitle').textContent = t[0] || '';
     document.getElementById('mainDesc').textContent = t[1] || '';
     if(sec === 'camp') renderCamps();
