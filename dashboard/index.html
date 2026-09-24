@@ -1165,6 +1165,20 @@
 
   function coreName(name){ return String(name || '').replace(/^\s*\[[^\]]*\]\s*/, '').trim(); }
 
+  /* 네이버 플레이스 버튼. 캠페인 140건 중 플레이스 주소가 저장된 건 0건이라(2026-09-24 확인)
+     기본은 네이버 지도 검색으로 보낸다. place_url 을 넣어두면 그 주소로 바로 간다.
+     검색어는 "[서울/강남구] 정희 강남역점" → "강남구 정희 강남역점" (지역 마지막 단어 + 업체명) */
+  function placeUrl(c){
+    var direct = safeUrl(c && c.place_url);
+    if(direct) return direct;
+    var core = coreName(c && c.name);
+    if(!core) return '';
+    var m = String(c.name).match(/^\s*\[([^\]]*)\]/);
+    var region = m ? m[1].split(/[\/\s]+/).filter(Boolean).pop() : '';
+    var q = (region && core.indexOf(region.replace(/[시구군역]$/, '')) < 0 ? region + ' ' : '') + core;
+    return 'https://map.naver.com/p/search/' + encodeURIComponent(q);
+  }
+
   function buildDraftPrompt(c){
     var prev = camps.filter(function(x){
       return x.id !== c.id && x.draft_content && coreName(x.name) && coreName(x.name) === coreName(c.name);
@@ -1739,7 +1753,8 @@ async function writeReview(id){
     { k:'extra_pay', label:'추가 결제 금액 (원)', type:'number' },
     { k:'reserve_phone', label:'예약 전화번호 (담당자용 · 본문 노출 금지)', type:'tel' },
     { k:'companion', label:'동행인', type:'text' },
-    { k:'link', label:'캠페인 링크', type:'url', full:true }
+    { k:'link', label:'캠페인 링크', type:'url', full:true },
+    { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true }
   ];
 
   function teardownDetail(){
@@ -2016,6 +2031,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var links = '';
     if(safeUrl(c.link)) links += '<a href="' + esc(safeUrl(c.link)) + '" target="_blank" rel="noopener">🔗 캠페인 페이지</a>';
     if(safeUrl(c.photo_folder)) links += '<a class="img-link" href="' + esc(safeUrl(c.photo_folder)) + '" target="_blank" rel="noopener">📁 사진 폴더</a>';
+    var pu = placeUrl(c);
+    if(pu) links += '<a href="' + esc(pu) + '" target="_blank" rel="noopener">📍 ' + (safeUrl(c.place_url) ? '네이버 플레이스' : '네이버 지도에서 찾기') + '</a>';
     if(safeUrl(c.posted_url)) links += '<a class="sub-link" href="' + esc(safeUrl(c.posted_url)) + '" target="_blank" rel="noopener">📮 발행한 글</a>';
     var dps = document.getElementById('dPostState');
     if(dps) dps.textContent = c.posted_url
