@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """홈피드 초안 검사기.
 
-발행 전에 규칙을 지켰는지 숫자로 확인한다. 근거는 CLAUDE.md '홈피드 규칙'.
+발행 전에 규칙을 지켰는지 숫자로 확인한다. 근거는 docs/20_홈피드_규칙.md.
 
   python3 tools/feedcheck.py <초안.txt> --keyword 장원영가방
   python3 tools/feedcheck.py <카드.json>          # items 문서면 카드에서 키워드·분류를 읽는다
@@ -19,7 +19,7 @@ SPLIT = re.compile(r'(?<=[.!?~])\s+(?=[^\s.!?~])')
 MD = re.compile(r'(^\s*[#>*]\s)|(\*\*)')
 DATE = re.compile(r'\d{1,2}월\s*\d{1,2}일|지난\s*(?:주말|주|달)|어제|오늘|그제')
 
-# 홈피드 규칙 (CLAUDE.md)
+# 홈피드 규칙 (docs/20_홈피드_규칙.md)
 BODY_MIN, BODY_MAX = 1300, 1700
 SUB_MIN, SUB_MAX = 3, 5
 TAGS_EXACT = 30
