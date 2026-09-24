@@ -122,6 +122,10 @@ def check(text, keyword, category=''):
             flag(spaced_in_title, '제목 띄어쓰기',
                  '띄운 형태로 들어감 ✓' if spaced_in_title else '붙여 썼음 — 제목은 띄우는 쪽이 읽기 좋다')
 
+    # 2026-09-24 르나 결정 — 제목 훅에서 괄호는 뺀다 (docs/07)
+    brackets = re.findall(r'[【】\[\]()]', title)
+    flag(not brackets, '제목 괄호', '없음' if not brackets else f'{"".join(brackets)} — 제목에는 괄호를 쓰지 않아요')
+
     flourish = body.count('~') + body.count('!')
     judge(flourish <= FLOURISH_MAX, '~ 와 ! 개수', f'{flourish}개 (최대 {FLOURISH_MAX})')
 
