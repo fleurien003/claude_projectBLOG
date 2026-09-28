@@ -342,7 +342,7 @@
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">월요일 12시 20분에 갱신</span></div>
+    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
     <div class="sec-list" id="homeRank"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
     <div class="chk-list" id="homeKw"></div>
@@ -1755,7 +1755,8 @@ async function writeReview(id){
     { k:'reserve_phone', label:'예약 전화번호 (담당자용 · 본문 노출 금지)', type:'tel' },
     { k:'companion', label:'동행인', type:'text' },
     { k:'link', label:'캠페인 링크', type:'url', full:true },
-    { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true }
+    { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true },
+    { k:'photo_folder', label:'사진 폴더 (구글 드라이브 링크 · 넣으면 📁 버튼이 이 주소로 가요)', type:'url', full:true }
   ];
 
   function teardownDetail(){
@@ -2049,7 +2050,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }
   }
 
-  function initDetail(id, isNew){
+  function initDetail(id){
     if(detailId === id && detailUnsub) return;
     teardownDetail();
     detailId = id;
@@ -2072,7 +2073,6 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }catch(e){
       document.getElementById('campDetail').innerHTML = '<div class="empty">불러오기에 실패했어요.</div>';
     }
-    if(isNew) setTimeout(function(){ var n = document.getElementById('f_name'); if(n) n.focus(); }, 50);
   }
 
   window.addEventListener('pagehide', function(){ Object.keys(detailFlush).forEach(function(k){ clearTimeout(detailTimers[k]); try{ detailFlush[k](); }catch(e){} }); });
@@ -2177,6 +2177,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
                '<span class="sec-c">' + label + move + '</span></div>'; }).join('')
       : '<div class="save-status">아직 확인한 글이 없어요. 발행한 글이 쌓이면 월요일에 순위를 재서 보여드려요.</div>';
+    var rankStateEl = document.getElementById('homeRankState');
+    if(rankStateEl) rankStateEl.textContent = ranked.length ? '월요일 12시 20분에 갱신' : '발행된 글이 없어 아직 순위를 볼 수 없어요';
 
     // 추천 키워드
     var kwEl = document.getElementById('homeKw');
@@ -2203,10 +2205,17 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var mon = new Date(t.getFullYear(), t.getMonth(), t.getDate() - day).getTime();
     return allItems.concat(camps).filter(function(x){ return x.posted_at && x.posted_at >= mon; }).length;
   }
+  /* 홈 상단 4칸 → EL.LIGHT 탭 매핑 (2026-09-28, 근거 없는 판단값 — 라벨 뜻에 맞춰 임의로 정함).
+     write="써야 할 글" → 캠페인 상태값 체계에서 '글쓰기 대기'(visited) 탭.
+     post="올릴 차례" → '초안 준비'(drafted) 탭.
+     week="이번 주 발행" → 정확히 이번 주만 거르는 탭은 없어서 가장 가까운 '포스팅 완료'(posted) 탭으로 보냄(기간 필터는 아님).
+     due는 원래 있던 동작 그대로 둠. */
+  var HOME_STAGE = { write:'visited', post:'drafted', due:'active', week:'posted' };
   document.getElementById('homeTodo').addEventListener('click', function(e){
     var b = e.target.closest('[data-home]'); if(!b) return;
     var k = b.dataset.home;
-    if(k === 'due'){ location.hash = 'camp'; setTimeout(function(){ campStage = 'active'; renderCamps(); }, 50); }
+    var stage = HOME_STAGE[k];
+    if(stage){ location.hash = 'camp'; setTimeout(function(){ campStage = stage; renderCamps(); }, 50); }
     else window.scrollTo({ top: document.getElementById('homeList').offsetTop - 60, behavior:'smooth' });
   });
 
@@ -2507,11 +2516,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     teardownEditor();
     if(h === 'tpl'){ teardownDetail(); show('tpl'); window.scrollTo(0,0); renderTemplates(); return; }
     if(h.indexOf('camp/') === 0){
-      var rest = h.slice(5), qi = rest.indexOf('?');
-      var id = decodeURIComponent(qi >= 0 ? rest.slice(0, qi) : rest);
+      var id = decodeURIComponent(h.slice(5));
       show('camp');
       window.scrollTo(0,0);
-      if(db) initDetail(id, qi >= 0);
+      if(db) initDetail(id);
       return;
     }
     teardownDetail();
