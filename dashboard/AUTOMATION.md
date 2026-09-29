@@ -12,7 +12,7 @@
 |---|---|---|---|
 | ⏸️ | 매일 08:00 | 홈피드 ① 아침 주제 발굴 (**고도화까지 정지**) | `trig_013kPLEYiATN5SF76SCxScp7` |
 | ⏸️ | 매일 14:00 | 홈피드 ② 다른 주제 가져오기 (**고도화까지 정지**) | `trig_01Gpu7v7Sy8eaDbYGYTvasum` |
-| 🟢 | 월·목 14:30 | 체험단 ② 선정메일·프롬프트·사진폴더 | `trig_01MYfVdv1WsPYvRiLu2LciQu` |
+| 🟢 | 월~목 14:30 | 체험단 ② 선정메일·프롬프트·사진폴더 | `trig_01MYfVdv1WsPYvRiLu2LciQu` (2026-09-29 월·목→월~목 변경) |
 | 🟢 | 화 01:00 UTC | 체험단 신청 후보 리스트업 | `trig_01Rwvbr4C1hMdhrr5cttbFsZ` |
 | 🟢 | 09-22 1회 | CTA 사이트 정리 | `trig_01Hr8TpkTg6CbmbtkVy83Qry` |
 
