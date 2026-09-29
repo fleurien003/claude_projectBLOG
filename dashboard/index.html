@@ -565,6 +565,7 @@
       html += '</div>';
     });
     feed.innerHTML = html;
+    hydrateFeedKw();
   }
 
   function fmtDate(d){
@@ -609,6 +610,7 @@
         '<div class="field"><span class="label">반전 포인트</span>' + esc(it.twist) + '</div>' +
         '<div class="title-bait">💬 ' + esc(it.title_bait) + '</div>' +
         (it.category_key === 'kurly_pick' ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(it.kurly_action_note || '컬리 큐레이터 홈에서 이 제품 검색 → 링크 생성 후 블로그에 삽입하세요 (르나 로그인 필요, 자동 생성 불가)') + '</div>' : '') +
+        (it.main_keyword ? '<div class="kw-res kw-res-embed" id="kwc-' + esc(it.id) + '" data-kw="' + esc(it.main_keyword) + '" hidden></div>' : '') +
         '<div class="links">' + links + '</div>' +
         (status === 'confirmed' ?
           '<div class="draft-note"><span class="status-txt">' + (it.draft_content ? '📝 초안 준비됨' : '✍️ 열어서 초안 쓰기') + '</span>' +
@@ -2250,8 +2252,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     return '';
   }
 
-  function kwRender(d){
-    var res = document.getElementById('kwRes');
+  function kwRender(d, targetEl){
+    var res = targetEl || document.getElementById('kwRes');
     var t = d.trend || {};
     var showMult = t.multiple && t.trust !== '무시';   // 판정 보류인데 배수를 띄우면 앞뒤가 안 맞는다
     var spike = t.icon
@@ -2333,6 +2335,34 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '</div>' + rel;
     res.hidden = false;
   }
+
+  /* 카드 안에 자동으로 뜨는 키워드 분석 — 어떤 키워드로 골랐는지, 상승/급등 판정,
+     연관 키워드까지 카드에서 바로 보이게 한다 (2026-09-29 요청). 클릭해서 조회하는
+     위 검색창과 달리, 카드가 그려지면 main_keyword로 조용히 한 번만 불러온다. */
+  async function hydrateCardKw(el){
+    if(!el || el.dataset.kwDone) return;
+    el.dataset.kwDone = '1';
+    var kw = el.dataset.kw;
+    if(!kw) return;
+    await initKeywordMcp();
+    if(!mcpNs) return;              // claude.ai 밖에서는 조용히 건너뛴다 (검색창과 같은 제약)
+    try{
+      var res = await callKeyword(kw, true);
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) return;
+      kwRender(d, el);
+    }catch(e){ /* 카드 안 미니 패널이라 실패해도 조용히 넘어간다 */ }
+  }
+  function hydrateFeedKw(){
+    document.querySelectorAll('#feed .kw-res-embed[data-kw]').forEach(hydrateCardKw);
+  }
+  document.getElementById('feed').addEventListener('click', function(e){
+    var b = e.target.closest('.kw-res-embed button[data-kw]');
+    if(!b) return;
+    document.getElementById('kwInput').value = b.dataset.kw;
+    kwLookup(b.dataset.kw);
+    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 
   /* 실패는 코드마다 고치는 방법이 다르다. 하나로 뭉뚱그리면
      정작 화면을 살릴 수 있는 행동이 안 보인다. 그래서 코드별로 다르게 안내한다. */
