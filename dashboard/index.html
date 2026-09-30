@@ -353,12 +353,8 @@
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
-    <div class="sec-list" id="homeRank"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
     <div class="chk-list" id="homeKw"></div>
-    <div class="sec-head"><span>📮 최근 발행</span><span class="save-status">블로그에서 자동으로 가져와요</span></div>
-    <div class="sec-list" id="homePosted"></div>
   </section>
 
   <section id="feedSection" hidden>
@@ -2219,21 +2215,6 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                  '<span class="sec-c">' + (r.d ? esc(fmtShort(r.d)) : '') + '</span></a>'; }).join('')
       : '<div class="save-status">지금 할 일이 없어요. 새 주제가 올라오면 여기 뜨게 돼요 🙂</div>';
 
-    // 순위
-    var ranked = allItems.concat(camps).filter(function(x){ return x.rank_checked_at; })
-      .sort(function(a,b){ return (b.rank_checked_at||0) - (a.rank_checked_at||0); });
-    var rankEl = document.getElementById('homeRank');
-    rankEl.innerHTML = ranked.length ? ranked.slice(0, 8).map(function(x){
-        var cur = Number(x.rank) || 0, prv = Number(x.rank_prev) || 0;
-        var label = cur ? cur + '위' : '100위 밖';
-        var move = (!prv || !cur) ? '' : (prv > cur ? ' ▲' + (prv - cur) : (cur > prv ? ' ▼' + (cur - prv) : ' －'));
-        return '<div class="sec-item"><span class="sec-t">' + esc(x.rank_keyword || x.main_keyword || '') + '</span>' +
-               '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
-               '<span class="sec-c">' + label + move + '</span></div>'; }).join('')
-      : '<div class="save-status">아직 확인한 글이 없어요. 발행한 글이 쌓이면 월요일에 순위를 재서 보여드려요.</div>';
-    var rankStateEl = document.getElementById('homeRankState');
-    if(rankStateEl) rankStateEl.textContent = ranked.length ? '월요일 12시 20분에 갱신' : '발행된 글이 없어 아직 순위를 볼 수 없어요';
-
     // 추천 키워드
     var kwEl = document.getElementById('homeKw');
     kwEl.innerHTML = (kwPicks && kwPicks.picks && kwPicks.picks.length)
@@ -2243,16 +2224,6 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                  (p.ratio ? ' · 비율 ' + p.ratio : '') + (p.note ? ' · ' + esc(p.note) : '') + '</small></span></div>'; }).join('')
       : '<div class="save-status">월요일 12시 20분에 이번 주 키워드를 뽑아서 여기 올려요.</div>';
 
-    // 최근 발행
-    var posted = allItems.concat(camps).filter(function(x){ return x.posted_url; })
-      .sort(function(a,b){ return (b.posted_at||0) - (a.posted_at||0); });
-    document.getElementById('homePosted').innerHTML = posted.length
-      ? posted.slice(0, 8).map(function(x){
-          return '<a class="sec-item" href="' + esc(safeUrl(x.posted_url)) + '" target="_blank" rel="noopener">' +
-                 '<span class="sec-t">' + (x.topic ? 'TIDINGS' : 'EL.LIGHT') + '</span>' +
-                 '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
-                 '<span class="sec-c">' + (x.posted_at ? new Date(x.posted_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '') + '</span></a>'; }).join('')
-      : '<div class="save-status">발행한 글이 여기 쌓여요.</div>';
   }
   function weekPosted(){
     var t = new Date(); var day = (t.getDay() + 6) % 7;           // 월요일 시작
