@@ -353,7 +353,7 @@
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
+    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">카테고리별</span></div>
     <div class="chk-list" id="homeKw"></div>
   </section>
 
@@ -443,6 +443,7 @@
     <textarea class="rev-ta" id="feedRevise" placeholder="예) 도입부를 더 짧게&#10;②번 내용이 어려워요, 쉽게 풀어줘&#10;마무리에 댓글 유도 한 줄 넣어줘"></textarea>
     <div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="feedReviseBtn">✏️ 수정 반영</button><span class="save-status" id="feedReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>
     <div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="feedPostState"></span></div>
+    <div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm good" id="feedPostedBtn">✓ 블로그 완료</button><span class="save-status">주소 없이도 완료로 기록해요</span></div>
     <input id="feedPostedUrl" class="search" type="url" placeholder="블로그에 올린 뒤 글 주소를 붙여넣어 주세요 (https://blog.naver.com/…)" autocomplete="off">
     <div class="save-status" style="margin-top:6px">주소를 넣어두면 이 주제가 실제로 검색에 걸리는지 매주 확인해서 알려드려요.</div>
     <details class="ref-panel" open>
@@ -666,6 +667,11 @@
           '<button class="btn btn-skip" data-action="skip" ' + (disabled?'disabled':'') + '>' +
             (isRefreshing ? '⏳ 새 주제 가져오는 중' : '🔄 다른 주제 가져오기') + '</button>' +
         '</div>' +
+        '<div class="actions" style="margin-top:8px">' +
+          (status === 'posted'
+            ? '<button class="btn btn-skip" data-action="unpost">↩ 발행 취소</button>'
+            : '<button class="btn btn-skip" data-action="posted">✓ 블로그 완료</button>') +
+        '</div>' +
       '</div>';
   }
 
@@ -680,6 +686,24 @@
 
     if(action === 'open-editor'){
       location.hash = 'draft/' + encodeURIComponent(id);
+      return;
+    }
+
+    if(action === 'posted' || action === 'unpost'){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+      btn.disabled = true;
+      var patch = action === 'posted'
+        ? { status:'posted', posted_at: Date.now(), status_updated_at: Date.now() }
+        : { status: item.draft_content ? 'confirmed' : 'pending', posted_at: 0, status_updated_at: Date.now() };
+      try{
+        await db.doc('items/' + id).update(patch);
+        Object.assign(item, patch);
+        render(); renderHome();
+        toast(action === 'posted' ? '블로그 완료로 기록했어요 📮' : '발행 표시를 취소했어요');
+      }catch(err){
+        toast('저장에 실패했어요. 다시 시도해주세요.');
+        btn.disabled = false;
+      }
       return;
     }
 
@@ -785,6 +809,8 @@
           autoWriteId = null;
           setTimeout(function(){ writeFeedDraft(id, docRef, null); }, 200);
         }
+        var pb = document.getElementById('feedPostedBtn');
+        if(pb){ pb.textContent = item.status === 'posted' ? '📮 블로그 완료됨' : '✓ 블로그 완료'; pb.disabled = item.status === 'posted'; }
         var wb = document.getElementById('feedWriteBtn');
         if(wb && !feedWriting){
           wb.textContent = item.draft_content ? '↻ 다시 쓰기' : '✍️ 초안 쓰기';
@@ -838,6 +864,11 @@
       writeFeedDraft(id, docRef, null);
     };
     document.getElementById('feedStopBtn').onclick = function(){ if(feedWriting) feedWriting.abort(); };
+    document.getElementById('feedPostedBtn').onclick = function(){
+      docRef.update({ status:'posted', posted_at: Date.now(), status_updated_at: Date.now() })
+        .then(function(){ toast('블로그 완료로 기록했어요 📮'); })
+        .catch(function(){ toast('저장에 실패했어요. 다시 시도해주세요.'); });
+    };
     document.getElementById('feedReviseBtn').onclick = function(){
       var box = document.getElementById('feedRevise');
       var want = box ? box.value.trim() : '';
@@ -2188,7 +2219,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var feedToWrite = allItems.filter(function(i){ return i.status === 'confirmed' && !i.draft_content; });
     var campToWrite = camps.filter(function(c){ return stageOf(c) === 'visited' && !c.draft_content; });
     // 올릴 차례 = 초안이 있는데 아직 발행 안 한 것
-    var feedToPost = allItems.filter(function(i){ return i.draft_content && !i.posted_url; });
+    var feedToPost = allItems.filter(function(i){ return i.draft_content && !i.posted_url && i.status !== 'posted'; });
     var campToPost = camps.filter(function(c){ return stageOf(c) === 'drafted' && c.draft_content; });
     var due3 = camps.filter(function(c){ var n = daysUntil(c.due); return isActive(c) && n !== null && n <= 3; });
 
@@ -2215,16 +2246,36 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                  '<span class="sec-c">' + (r.d ? esc(fmtShort(r.d)) : '') + '</span></a>'; }).join('')
       : '<div class="save-status">지금 할 일이 없어요. 새 주제가 올라오면 여기 뜨게 돼요 🙂</div>';
 
-    // 추천 키워드
+    // 추천 키워드: 카테고리별로 묶어서 보여준다. 눌러서 바로 검색량 조회.
     var kwEl = document.getElementById('homeKw');
-    kwEl.innerHTML = (kwPicks && kwPicks.picks && kwPicks.picks.length)
-      ? kwPicks.picks.slice(0, 10).map(function(p){
-          return '<div class="chk"><span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b>' +
-                 '<small>월 ' + Number(p.volume || 0).toLocaleString() + '회 · 문서 ' + Number(p.docs || 0).toLocaleString() + '건' +
-                 (p.ratio ? ' · 비율 ' + p.ratio : '') + (p.note ? ' · ' + esc(p.note) : '') + '</small></span></div>'; }).join('')
-      : '<div class="save-status">월요일 12시 20분에 이번 주 키워드를 뽑아서 여기 올려요.</div>';
-
+    var picks = (kwPicks && kwPicks.picks) || [];
+    if(!picks.length){
+      kwEl.innerHTML = '<div class="save-status">아직 이번 주 키워드가 없어요. 월요일 12시 20분에 뽑아서 여기 올려요.</div>';
+    }else{
+      var groups = {}, order = [];
+      picks.forEach(function(p){ var g = p.category || '기타'; if(!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(p); });
+      kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회</div>' : '') +
+        order.map(function(g){
+          var mode = groups[g][0].mode || '';
+          return '<div class="sec-head" style="margin:8px 0 2px"><span style="font-size:13.5px">' + esc(g) + '</span><span class="save-status">' + esc(mode) + '</span></div>' +
+            groups[g].map(function(p){
+              var bits = ['월 ' + Number(p.volume || 0).toLocaleString() + '회'];
+              if(p.trend) bits.push(p.trend);
+              if(p.comp) bits.push('경쟁 ' + p.comp);
+              if(p.earn) bits.push(p.earn);
+              if(p.note) bits.push(p.note);
+              return '<button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
+                '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>';
+            }).join('');
+        }).join('');
+    }
   }
+  document.getElementById('homeKw').addEventListener('click', function(e){
+    var b = e.target.closest('[data-pickkw]'); if(!b) return;
+    document.getElementById('kwInput').value = b.dataset.pickkw;
+    kwLookup(b.dataset.pickkw);
+    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
   function weekPosted(){
     var t = new Date(); var day = (t.getDay() + 6) % 7;           // 월요일 시작
     var mon = new Date(t.getFullYear(), t.getMonth(), t.getDate() - day).getTime();
