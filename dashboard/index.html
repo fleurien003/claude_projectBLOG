@@ -351,6 +351,17 @@
 
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
+    <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
+    <div class="sec-list" id="homeList"></div>
+    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
+    <div class="sec-list" id="homeRank"></div>
+    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
+    <div class="chk-list" id="homeKw"></div>
+    <div class="sec-head"><span>📮 최근 발행</span><span class="save-status">블로그에서 자동으로 가져와요</span></div>
+    <div class="sec-list" id="homePosted"></div>
+  </section>
+
+  <section id="feedSection" hidden>
     <div id="homeChannels"></div>
     <div class="sec-head"><span>📎 쓸 링크</span><span class="save-status" id="linkCount"></span></div>
     <form class="panel addbox" id="linkForm">
@@ -363,20 +374,9 @@
         <button type="submit" class="btn-add">추가</button>
       </div>
       <textarea id="linkMemo" class="rev-ta" style="margin-top:8px;min-height:56px" placeholder="캡션이나 메모 (링크가 안 읽히면 캡션 글을 여기 붙여넣어 주세요)"></textarea>
-      <div class="help">추가해 두었다가 Claude에게 "쓸 링크 봐줘"라고 하면 읽고 주제를 정리해요.</div>
+      <div class="help">추가하면 아래 카테고리에 카드가 바로 만들어져요. 캡션을 붙여넣으면 카드 내용까지 바로 채우고, 링크만 넣으면 Claude에게 "쓸 링크 봐줘"라고 할 때 채워요.</div>
     </form>
     <div class="sec-list" id="linkList"></div>
-    <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
-    <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
-    <div class="sec-list" id="homeRank"></div>
-    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
-    <div class="chk-list" id="homeKw"></div>
-    <div class="sec-head"><span>📮 최근 발행</span><span class="save-status">블로그에서 자동으로 가져와요</span></div>
-    <div class="sec-list" id="homePosted"></div>
-  </section>
-
-  <section id="feedSection" hidden>
     <div class="tabs" id="tabs">
       <button class="tab active" data-cat="all">전체</button>
       <button class="tab" data-cat="travel_issue">✈️ 여행이슈</button>
@@ -386,6 +386,10 @@
       <button class="tab" data-cat="finance">💰 재테크</button>
       <button class="tab" data-cat="ott">🎬 OTT</button>
       <button class="tab" data-cat="kurly_pick">🛒 컬리추천템</button>
+      <button class="tab" data-cat="fashion_coord">🧥 패션코디</button>
+      <button class="tab" data-cat="costco_daiso">🛍️ 코스트코·다이소</button>
+      <button class="tab" data-cat="appliance">🏠 가전·가구</button>
+      <button class="tab" data-cat="phone">📱 핸드폰</button>
     </div>
     <div id="feed">
       <div class="empty">불러오는 중...</div>
@@ -479,7 +483,11 @@
     celeb_fashion: { label:"👗 연예인패션", chip:"chip-fashion" },
     finance:       { label:"💰 재테크",     chip:"chip-finance" },
     ott:           { label:"🎬 OTT",        chip:"chip-ott"     },
-    kurly_pick:    { label:"🛒 컬리추천템", chip:"chip-kurly"   }
+    kurly_pick:    { label:"🛒 컬리추천템", chip:"chip-kurly"   },
+    fashion_coord: { label:"🧥 패션코디",   chip:"chip-fashion" },
+    costco_daiso:  { label:"🛍️ 코스트코·다이소", chip:"chip-kurly" },
+    appliance:     { label:"🏠 가전·가구",  chip:"chip-travel"  },
+    phone:         { label:"📱 핸드폰",     chip:"chip-ott"     }
   };
   var STATUS_META = {
     pending:       { label:"확인 대기중" },
@@ -986,6 +994,7 @@
     if(feedWriting) return;
     var it = feedItem;
     if(!it){ toast('주제를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    if(it.needs_read){ toast('아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
     var ctl = new AbortController();
     feedWriting = ctl;
@@ -2728,26 +2737,83 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var el = document.getElementById('linkList');
     if(!el) return;
     var open = linkListData.filter(function(l){ return l.status !== 'done'; });
-    document.getElementById('linkCount').textContent = open.length ? open.length + '개 대기' : '';
+    document.getElementById('linkCount').textContent = open.length ? open.length + '개 읽기 대기' : '';
     el.innerHTML = open.slice(0, 30).map(function(l){
       var memo = String(l.memo || '').replace(/\s+/g, ' ').trim();
       return '<div class="sec-item link-row"><span class="sec-t">' + esc(l.cat || '') + '</span>' +
         '<a class="sec-p" href="' + esc(safeUrl(l.url)) + '" target="_blank" rel="noopener">' + esc(hostOf(l.url) ? l.url.replace(/^https?:\/\/(www\.)?/, '') : l.url) + (memo ? ' · ' + esc(memo.slice(0, 40)) : '') + '</a>' +
         '<button type="button" class="btn-link" data-link-del="' + esc(l.id) + '">삭제</button></div>'; }).join('');
   }
+  /* 링크를 담으면 그 자리에서 TIDINGS 카드를 만든다.
+     페이지는 인스타를 직접 읽지 못한다(외부 접속 차단). 그래서 캡션(메모)이 있으면 그걸로 카드 내용을 바로 채우고,
+     없으면 "읽기 전" 카드로 만든 뒤 Claude 가 링크를 읽어 채운다. 읽기 전 카드는 초안 쓰기를 막는다. */
+  var LINK_CAT_KEY = { '연예인·명품':'celeb_fashion', '패션 코디':'fashion_coord', '명소·축제':'travel_spot', '코스트코·다이소':'costco_daiso',
+    '가전·가구':'appliance', '핸드폰':'phone', '여행':'travel_issue', 'OTT':'ott', '컬리':'kurly_pick' };
+  var NEED_READ_TXT = '아직 링크 내용을 읽지 못했어요. Claude에게 "쓸 링크 봐줘"라고 하면 강조·반전 포인트를 채워요.';
+  function parseJsonLoose(t){
+    var m = String(t || '').match(/\{[\s\S]*\}/);
+    if(!m) return null;
+    try{ return JSON.parse(m[0]); }catch(e){ return null; }
+  }
+  function linkCardPrompt(url, catLabel, memo){
+    return [
+      '너는 르나의 네이버 홈피드 글감 카드를 정리하는 조수야. 아래 게시물 캡션을 읽고 카드 내용을 채워.',
+      '',
+      '[카테고리] ' + catLabel,
+      '[링크] ' + url,
+      '[캡션·메모]',
+      String(memo).slice(0, 3000),
+      '',
+      '[규칙]',
+      '- 캡션에 있는 인물·브랜드·제품명·가격·날짜만 써. 없는 숫자나 사실을 지어내지 마.',
+      '- topic: 한 줄. 누구/무엇 + 아이템이 드러나게.',
+      '- emphasis: 글에서 강조할 포인트 1~2문장.',
+      '- twist: 궁금증을 만드는 반전·의문 포인트 1문장. 캡션에 있는 사실 범위 안에서.',
+      '- title_bait: 제목 후보 한 개. 괄호는 쓰지 마.',
+      '- 아래 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"topic":"","emphasis":"","twist":"","title_bait":""}'
+    ].join('\n');
+  }
+  async function makeCardFromLink(id, url, catLabel, memo){
+    var key = LINK_CAT_KEY[catLabel] || 'celeb_fashion';
+    var meta = CAT_META[key] || { label: catLabel };
+    var short = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+    await db.doc('items/' + id).set({
+      date: localToday(), category_key: key, category: String(meta.label).replace(/^\S+\s/, ''),
+      topic: '(링크 확인 전) ' + short, emphasis: NEED_READ_TXT, twist: '', title_bait: '',
+      source_url: url, status: 'pending', origin: 'link', link_id: id, needs_read: true, created_at: Date.now()
+    });
+    if(memo && sampleFn && !sampleBlocked){
+      try{
+        var res = await sampleFn(linkCardPrompt(url, catLabel, memo), { cache: false });
+        var j = parseJsonLoose(res && res.text);
+        if(j && j.topic){
+          await db.doc('items/' + id).update({
+            topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''), needs_read: false });
+          await db.doc('links/' + id).update({ status: 'done' });
+          return 'filled';
+        }
+      }catch(e){
+        if(e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled' || e.code === 'capability_removed')) sampleBlocked = true;
+      }
+    }
+    return 'shell';
+  }
   document.getElementById('linkForm').addEventListener('submit', async function(e){
     e.preventDefault();
     if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
     var url = safeUrl(document.getElementById('linkUrl').value);
     if(!url){ toast('https:// 로 시작하는 링크를 넣어주세요.'); return; }
-    if(linkListData.some(function(l){ return l.url === url && l.status !== 'done'; })){ toast('이미 넣어둔 링크예요'); return; }
+    if(linkListData.some(function(l){ return l.url === url && l.status !== 'done'; }) || allItems.some(function(i){ return i.source_url === url && i.origin === 'link'; })){ toast('이미 카드로 만들어 둔 링크예요'); return; }
     var btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    var cat = document.getElementById('linkCat').value, memo = document.getElementById('linkMemo').value.trim();
+    var id = 'l' + Date.now().toString(36);
     try{
-      await db.doc('links/l' + Date.now().toString(36)).set({
-        url: url, cat: document.getElementById('linkCat').value, memo: document.getElementById('linkMemo').value.trim(),
-        status: 'new', created_at: Date.now() });
+      await db.doc('links/' + id).set({ url: url, cat: cat, memo: memo, status: 'new', card_id: id, created_at: Date.now() });
       document.getElementById('linkUrl').value = ''; document.getElementById('linkMemo').value = '';
-      toast('링크를 담았어요 📎');
+      toast(memo ? '카드를 만들고 있어요…' : '카드를 만들었어요');
+      var r = await makeCardFromLink(id, url, cat, memo);
+      toast(r === 'filled' ? '카드를 만들었어요 (캡션 기반) 📎' : '카드를 만들었어요. 내용은 Claude에게 "쓸 링크 봐줘"라고 하면 채워요');
     }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.'); }
     btn.disabled = false;
   });
