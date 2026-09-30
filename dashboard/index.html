@@ -397,6 +397,7 @@
       <button class="tab" data-cat="travel_issue" title="여행" aria-label="여행">✈️</button>
       <button class="tab" data-cat="ott" title="OTT" aria-label="OTT">🎬</button>
       <button class="tab" data-cat="kurly_pick" title="컬리" aria-label="컬리">🛒</button>
+      <button class="tab" data-cat="done" title="블로그 완료" aria-label="블로그 완료">✅</button>
     </div>
     <div class="links" id="cpaBar" hidden></div>
     <details class="fold" id="celebFold" hidden>
@@ -512,16 +513,32 @@
     celeb_issue:   { label:"💄 연예인이슈(옛)",  chip:"chip-celeb"   },
     finance:       { label:"💰 재테크(옛)",      chip:"chip-finance" }
   };
-  /* 카테고리별 CPA 연결 사이트 (은아님이 알려준 주소). 애드포스트 카테고리는 CPA 없음. */
+  /* 카테고리별 연결 사이트 (은아님이 알려준 주소). 애드포스트 카테고리 중 코스트코·다이소는 인스타 태그 검색.
+     확인할 채널에 카테고리를 정해 등록하면 그 탭에도 채널 버튼이 붙는다 (updateCpaBar). */
+  var IG_COSTCO = 'https://www.instagram.com/explore/search/keyword/?q=%23%EC%BD%94%EC%8A%A4%ED%8A%B8%EC%BD%94';
+  var IG_DAISO  = 'https://www.instagram.com/explore/search/keyword/?q=%23%EB%8B%A4%EC%9D%B4%EC%86%8C';
+  var BRANDCONNECT = 'https://brandconnect.naver.com/911666670459104/affiliate/products';
+  var PICKLE = 'https://pickle.plus/partners/dashboard';
+  var MRT = 'https://partner.myrealtrip.com/welcome/marketing_partner';
   var CPA_LINKS = {
-    appliance:    [{ label:'네이버 브랜드커넥트', url:'https://brandconnect.naver.com/911666670459104/affiliate/products' }],
-    phone:        [{ label:'피클플러스 핸드폰', url:'https://pickleplus.notion.site/3a5d8cbc54dd80beb627daf197d4c2e0' }],
-    travel_issue: [{ label:'마이리얼트립', url:'https://myrealtrip.notion.site/0f9e7b83028d406cb046a69ca01feeb3' }],
-    travel_spot:  [{ label:'마이리얼트립 (숙소·액티비티)', url:'https://myrealtrip.notion.site/0f9e7b83028d406cb046a69ca01feeb3' }],
-    ott:          [{ label:'피클플러스 OTT 가이드', url:'https://pickleplus.notion.site/TIP-1c4d8cbc54dd8045aaede0cd6d33af28' },
-                   { label:'공동구독 링크', url:'https://pickle.plus/partners/partner-code/6BAA77E1' }],
-    kurly_pick:   [{ label:'컬리 큐레이터', url:'https://lounge.kurly.com/curator-program/main' }]
+    appliance:    [{ label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
+    phone:        [{ label:'피클플러스', url:PICKLE }, { label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
+    travel_issue: [{ label:'마이리얼트립 파트너', url:MRT }],
+    travel_spot:  [{ label:'마이리얼트립 파트너', url:MRT }],
+    ott:          [{ label:'피클플러스', url:PICKLE }],
+    kurly_pick:   [{ label:'컬리 큐레이터', url:'https://lounge.kurly.com/curator-program/main' }],
+    costco_daiso: [{ icon:'📷', label:'코스트코 인스타 태그', url:IG_COSTCO }, { icon:'📷', label:'다이소 인스타 태그', url:IG_DAISO }]
   };
+  function updateCpaBar(){
+    var cb = document.getElementById('cpaBar');
+    if(!cb) return;
+    var links = (CPA_LINKS[currentFilter] || []).map(function(l){ return { icon: l.icon || '🔗', label: l.label, url: l.url }; });
+    chanList.forEach(function(c){
+      if(safeUrl(c.url) && c.cat && LINK_CAT_KEY[c.cat] === currentFilter) links.push({ icon:'📡', label: c.name || hostOf(c.url), url: safeUrl(c.url) });
+    });
+    cb.hidden = !links.length;
+    cb.innerHTML = links.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + l.icon + ' ' + esc(l.label) + '</a>'; }).join('');
+  }
   var STATUS_META = {
     pending:       { label:"확인 대기중" },
     confirmed:     { label:"✅ 컨펌됨" },
@@ -621,12 +638,7 @@
     var feed = document.getElementById('feed');
     var cf = document.getElementById('celebFold');
     if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
-    var cb = document.getElementById('cpaBar');
-    if(cb){
-      var cl = CPA_LINKS[currentFilter] || [];
-      cb.hidden = !cl.length;
-      cb.innerHTML = cl.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">🔗 ' + esc(l.label) + '</a>'; }).join('');
-    }
+    updateCpaBar();
     if(!itemsLoaded) return;
     if(!allItems.length){
       feed.innerHTML = '<div class="empty">아직 등록된 트렌드 후보가 없어요.<br>매일 아침 자동으로 채워져요 🌤️</div>';
@@ -634,12 +646,14 @@
     }
     var byDate = {};
     allItems.forEach(function(it){
-      if(currentFilter !== 'all' && it.category_key !== currentFilter) return;
+      var done = it.status === 'posted';
+      if(currentFilter === 'done'){ if(!done) return; }
+      else{ if(done) return; if(currentFilter !== 'all' && it.category_key !== currentFilter) return; }
       (byDate[it.date] = byDate[it.date] || []).push(it);
     });
     var dates = Object.keys(byDate).sort().reverse();
     if(!dates.length){
-      feed.innerHTML = '<div class="empty">이 카테고리엔 아직 후보가 없어요.</div>';
+      feed.innerHTML = '<div class="empty">' + (currentFilter === 'done' ? '아직 완료한 글이 없어요.<br>카드의 ✓ 블로그 완료를 누르면 여기로 모여요.' : '이 카테고리엔 아직 후보가 없어요.') + '</div>';
       return;
     }
     var today = localToday();
@@ -2698,7 +2712,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
 
   var CHAN_FIELDS = [
     { k:'name', label:'채널 이름', type:'text', ph:'예) 엄미 매거진' },
-    { k:'use',  label:'용도', type:'text', ph:'예) 연예인 명품, 패션 코디, 가전' },
+    { k:'cat',  label:'카테고리 (그 탭에 버튼이 생겨요)', type:'select', options:['없음','연예인·명품','패션 코디','명소·축제','코스트코·다이소','가전·가구','핸드폰','여행','OTT','컬리'] },
     { k:'url',  label:'주소', type:'text', full:true, ph:'https://www.instagram.com/계정명/' }
   ];
   var chanList = [], chanCheck = null;
@@ -2710,7 +2724,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var attrs = ' id="' + esc(did) + '" data-col="' + col + '" data-id="' + esc(id) + '" data-k="' + f.k + '"';
     var input;
     if(f.type === 'select'){
-      var cats = GEAR_CATS.slice();
+      var cats = (f.options || GEAR_CATS).slice();
       if(v && cats.indexOf(v) < 0) cats.unshift(v);
       input = '<select' + attrs + '>' + cats.map(function(c){ return '<option' + (c === v ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
     }else if(f.type === 'textarea'){
@@ -2761,7 +2775,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       ? { cat:'핸드폰', name:'', since:'', note:'' }
       : (col === 'trips'
         ? { place:'', when:'', days:'', with:'', stay:'', spots:'', tip:'' }
-        : { name:'', use:'', url:'' });
+        : { name:'', cat:'없음', url:'' });
     row.created_at = now; row.updated_at = now;
     try{
       await db.doc(col + '/' + id).set(row);
@@ -2833,7 +2847,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '<div class="sec-head"><span>📡 확인할 채널</span><span class="save-status">' + esc(stateTxt) + '</span></div>' +
       '<div class="sec-list">' + list.map(function(c){
         return '<div class="sec-item link-row"><a class="sec-t" href="' + esc(safeUrl(c.url)) + '" target="_blank" rel="noopener" data-chan="1">' + esc(c.name || hostOf(c.url)) + '</a>' +
-               '<span class="sec-p">' + esc(c.use || '') + '</span>' +
+               '<span class="sec-p">' + esc((c.cat && c.cat !== '없음') ? c.cat : (c.use || '')) + '</span>' +
                '<button type="button" class="btn-link" data-copy="' + esc(safeUrl(c.url)) + '">주소 복사</button></div>'; }).join('') + '</div>' +
       '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm good" id="chanDone">✓ 오늘 확인 끝</button>' +
         '<span class="save-status">채널 이름을 눌러 하나씩 열어요</span></div>';
@@ -3185,7 +3199,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     try{
       db.collection('channels').limit(200).onSnapshot(function(res){
         chanList = toList(res).sort(function(a, b){ return (a.created_at || 0) - (b.created_at || 0); });
-        renderMe(); renderChannels();
+        renderMe(); renderChannels(); updateCpaBar();
       }, function(){});
     }catch(e){}
 
