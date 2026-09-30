@@ -318,6 +318,9 @@
   /* 내 정보 (쓰는 제품 · 다녀온 여행) */
   .f select{ width:100%; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
   .f select:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .addbox select{ flex:1 1 160px; min-width:0; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .link-row{ cursor:default; }
+  .link-row a{ color:inherit; text-decoration:none; }
   .me-row{ margin-bottom:10px; }
   .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
   @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
@@ -349,6 +352,20 @@
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
     <div id="homeChannels"></div>
+    <div class="sec-head"><span>📎 쓸 링크</span><span class="save-status" id="linkCount"></span></div>
+    <form class="panel addbox" id="linkForm">
+      <div class="row"><input id="linkUrl" type="url" placeholder="쓰고 싶은 게시물 링크 (https://www.instagram.com/p/…)" required autocomplete="off"></div>
+      <div class="row" style="margin-top:8px">
+        <select id="linkCat" aria-label="카테고리">
+          <option>연예인·명품</option><option>패션 코디</option><option>명소·축제</option><option>코스트코·다이소</option>
+          <option>가전·가구</option><option>핸드폰</option><option>여행</option><option>OTT</option><option>컬리</option>
+        </select>
+        <button type="submit" class="btn-add">추가</button>
+      </div>
+      <textarea id="linkMemo" class="rev-ta" style="margin-top:8px;min-height:56px" placeholder="캡션이나 메모 (링크가 안 읽히면 캡션 글을 여기 붙여넣어 주세요)"></textarea>
+      <div class="help">추가해 두었다가 Claude에게 "쓸 링크 봐줘"라고 하면 읽고 주제를 정리해요.</div>
+    </form>
+    <div class="sec-list" id="linkList"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
     <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
@@ -2686,29 +2703,57 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       : (lastD ? '마지막 확인 ' + (lastD.getMonth() + 1) + '/' + lastD.getDate() : '아직 확인 기록이 없어요');
     el.innerHTML =
       '<div class="sec-head"><span>📡 확인할 채널</span><span class="save-status">' + esc(stateTxt) + '</span></div>' +
-      '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm primary" id="chanOpenAll">📂 전체 열기 (' + list.length + ')</button>' +
-        '<button type="button" class="btn-sm good" id="chanDone">✓ 오늘 확인 끝</button></div>' +
       '<div class="sec-list">' + list.map(function(c){
-        return '<a class="sec-item" href="' + esc(safeUrl(c.url)) + '" target="_blank" rel="noopener"><span class="sec-t">' + esc(c.name || hostOf(c.url)) + '</span>' +
-               '<span class="sec-p">' + esc(c.use || '') + '</span><span class="sec-c">열기</span></a>'; }).join('') + '</div>';
+        return '<div class="sec-item link-row"><a class="sec-t" href="' + esc(safeUrl(c.url)) + '" target="_blank" rel="noopener" data-chan="1">' + esc(c.name || hostOf(c.url)) + '</a>' +
+               '<span class="sec-p">' + esc(c.use || '') + '</span>' +
+               '<button type="button" class="btn-link" data-copy="' + esc(safeUrl(c.url)) + '">주소 복사</button></div>'; }).join('') + '</div>' +
+      '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm good" id="chanDone">✓ 오늘 확인 끝</button>' +
+        '<span class="save-status">채널 이름을 눌러 하나씩 열어요</span></div>';
   }
   document.getElementById('homeChannels').addEventListener('click', async function(e){
-    if(e.target.closest('#chanOpenAll')){
-      var list = chanList.filter(function(c){ return safeUrl(c.url); });
-      var blocked = 0;
-      list.forEach(function(c){
-        var w = null;
-        try{ w = window.open(safeUrl(c.url), '_blank'); }catch(err){}
-        if(w){ try{ w.opener = null; }catch(err){} } else { blocked++; }
-      });
-      toast(blocked ? blocked + '개는 브라우저가 막았어요. 아래 링크를 눌러 열어주세요.' : list.length + '개 채널을 열었어요');
-      return;
-    }
+    var cp = e.target.closest('[data-copy]');
+    if(cp){ copyString(cp.dataset.copy); return; }
+    var a = e.target.closest('a[data-chan]');
+    if(a){ a.style.opacity = '.55'; return; }
     if(e.target.closest('#chanDone')){
       if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
       try{ await db.doc('settings/channel_check').set({ last_checked_at: Date.now() }); toast('오늘 확인 끝으로 기록했어요'); }
       catch(err){ toast('저장에 실패했어요. 다시 시도해주세요.'); }
     }
+  });
+
+  /* ── 📎 쓸 링크: 보다가 쓰고 싶은 게시물을 모아두는 곳. Claude 가 여기서 읽어 주제를 정리한다. (DB: links) ── */
+  var linkListData = [];
+  function renderLinks(){
+    var el = document.getElementById('linkList');
+    if(!el) return;
+    var open = linkListData.filter(function(l){ return l.status !== 'done'; });
+    document.getElementById('linkCount').textContent = open.length ? open.length + '개 대기' : '';
+    el.innerHTML = open.slice(0, 30).map(function(l){
+      var memo = String(l.memo || '').replace(/\s+/g, ' ').trim();
+      return '<div class="sec-item link-row"><span class="sec-t">' + esc(l.cat || '') + '</span>' +
+        '<a class="sec-p" href="' + esc(safeUrl(l.url)) + '" target="_blank" rel="noopener">' + esc(hostOf(l.url) ? l.url.replace(/^https?:\/\/(www\.)?/, '') : l.url) + (memo ? ' · ' + esc(memo.slice(0, 40)) : '') + '</a>' +
+        '<button type="button" class="btn-link" data-link-del="' + esc(l.id) + '">삭제</button></div>'; }).join('');
+  }
+  document.getElementById('linkForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var url = safeUrl(document.getElementById('linkUrl').value);
+    if(!url){ toast('https:// 로 시작하는 링크를 넣어주세요.'); return; }
+    if(linkListData.some(function(l){ return l.url === url && l.status !== 'done'; })){ toast('이미 넣어둔 링크예요'); return; }
+    var btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    try{
+      await db.doc('links/l' + Date.now().toString(36)).set({
+        url: url, cat: document.getElementById('linkCat').value, memo: document.getElementById('linkMemo').value.trim(),
+        status: 'new', created_at: Date.now() });
+      document.getElementById('linkUrl').value = ''; document.getElementById('linkMemo').value = '';
+      toast('링크를 담았어요 📎');
+    }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.'); }
+    btn.disabled = false;
+  });
+  document.getElementById('linkList').addEventListener('click', async function(e){
+    var d = e.target.closest('[data-link-del]'); if(!d || !db) return;
+    try{ await db.doc('links/' + d.dataset.linkDel).delete(); }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
   });
 
   /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
@@ -2870,6 +2915,13 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       db.collection('channels').limit(200).onSnapshot(function(res){
         chanList = toList(res).sort(function(a, b){ return (a.created_at || 0) - (b.created_at || 0); });
         renderMe(); renderChannels();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('links').limit(300).onSnapshot(function(res){
+        linkListData = toList(res).sort(newestFirst);
+        renderLinks();
       }, function(){});
     }catch(e){}
 
