@@ -2331,12 +2331,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(!kwEl) return;
     var picks = (kwPicks && kwPicks.picks) || [];
     if(!picks.length){
-      kwEl.innerHTML = '<div class="save-status">아직 이번 주 키워드가 없어요. 월요일 12시 20분에 뽑아서 여기 올려요.</div>';
+      kwEl.innerHTML = '<div class="save-status">아직 이번 주 키워드가 없어요. 월·목 오전 7시에 뽑아서 여기 올려요.</div>';
       return;
     }
     var groups = {}, order = [];
     picks.forEach(function(p){ var g = p.category || '기타'; if(!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(p); });
-    kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회</div>' : '') +
+    kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회 · 월·목 오전 7시에 새로 뽑고, 카드 있음·다른 키워드 표시는 목요일에 바뀌어요</div>' : '') +
       order.map(function(g){
         var mode = groups[g][0].mode || '';
         return '<div class="sec-head" style="margin:8px 0 2px"><span style="font-size:13.5px">' + esc(g) + '</span><span class="save-status">' + esc(mode) + '</span></div>' +
@@ -2349,7 +2349,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
             var has = hasKwCard(p.kw);
             return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
               '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' +
-              '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button></div>' + inlineKwSlot(p.kw);
+              '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
+              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '</div>' + inlineKwSlot(p.kw);
           }).join('');
       }).join('');
     fillInlineKw(kwEl);
@@ -2398,6 +2399,19 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   /* 추천 키워드의 '주제 선정' — 그 카테고리 탭에 주제 카드를 바로 만든다. DB 쓰기만 하므로 Claude 토큰이 들지 않는다.
      페이지는 웹 자료를 못 읽으니 카드는 '자료 조사 전' 상태로 만들고(초안 쓰기 막힘), Claude 가 "주제 조사해줘"를 받으면 채운다. */
+  /* '다른 키워드' — 그 키워드에 교체 표시(swap)를 달아 둔다. 목요일 07시 루틴이 표시된 키워드를 새로 뽑아 바꾼다. DB 쓰기만이라 토큰 0. */
+  async function toggleSwap(kw){
+    if(!db || !kwPicks || !kwPicks.id){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var picks = ((kwPicks.picks) || []).map(function(x){
+      if(x.kw !== kw) return x;
+      var y = Object.assign({}, x); if(y.swap) delete y.swap; else y.swap = true; return y;
+    });
+    try{
+      await db.doc('keyword_picks/' + kwPicks.id).update({ picks: picks });
+      var on = picks.filter(function(x){ return x.kw === kw; })[0].swap;
+      toast(on ? '목요일 오전 7시에 다른 키워드로 바꿔요' : '교체 표시를 뺐어요');
+    }catch(err){ toast('저장하지 못했어요. 다시 시도해주세요.'); }
+  }
   function hasKwCard(kw){
     return allItems.some(function(i){ return i.origin === 'keyword' && i.main_keyword === kw && i.status !== 'posted'; });
   }
@@ -2427,6 +2441,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   document.getElementById('homeKw').addEventListener('click', function(e){
     if(relatedJump(e)) return;
+    var sw = e.target.closest('[data-pickswap]');
+    if(sw){ toggleSwap(sw.dataset.pickswap); return; }
     var mk = e.target.closest('[data-pickmk]');
     if(mk){ if(!mk.disabled) makePickCard(mk.dataset.pickmk); return; }
     var b = e.target.closest('[data-pickkw]'); if(!b) return;
