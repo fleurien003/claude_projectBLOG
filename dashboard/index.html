@@ -257,8 +257,9 @@
   .f .help{ font-size:11.5px; color:var(--sub); margin-top:4px; line-height:1.5; }
   .inline-link{ font-size:12px; color:var(--sub); text-decoration:none; border:1px solid var(--line); padding:5px 10px; border-radius:8px; }
   .sec-head{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:14px 0 6px; font-size:12.5px; font-weight:800; color:var(--sub); }
+  .sec-head > span:first-child{ font-size:16px; font-weight:800; color:var(--ink); }
   .sec-list{ display:grid; gap:6px; grid-template-columns:minmax(0,1fr); }
-  .sec-item{ display:flex; align-items:center; gap:10px; width:100%; min-width:0; overflow:hidden; text-align:left; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:11px; padding:10px 12px; cursor:pointer; }
+  .sec-item{ display:flex; align-items:center; gap:10px; width:100%; min-width:0; overflow:hidden; text-align:left; text-decoration:none; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:11px; padding:10px 12px; cursor:pointer; }
   .sec-item:hover{ border-color:var(--accent); }
   .sec-item .sec-t{ font-size:13.5px; font-weight:800; flex:none; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sec-item .sec-p{ font-size:12.5px; color:var(--sub); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -314,6 +315,12 @@
   .tpl-item summary .meta-s{ font-size:11.5px; font-weight:600; color:var(--sub); }
   .tpl-item .inner{ padding:0 14px 14px; }
   .tpl-item textarea{ width:100%; min-height:44vh; font:inherit; font-size:13.5px; line-height:1.7; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; resize:vertical; }
+  /* 내 정보 (쓰는 제품 · 다녀온 여행) */
+  .f select{ width:100%; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
+  .f select:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .me-row{ margin-bottom:10px; }
+  .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
+  @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
 </style>
 
 <div class="wrap" id="mainView">
@@ -327,6 +334,7 @@
     <button type="button" data-sec="home" class="active">🏠 홈</button>
     <button type="button" data-sec="feed">🔥 TIDINGS</button>
     <button type="button" data-sec="camp">📝 EL.LIGHT <span class="count" id="campCount" hidden></span></button>
+    <button type="button" data-sec="me">👤 내 정보</button>
   </nav>
 
   <div class="kwbox">
@@ -342,7 +350,7 @@
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">월요일 12시 20분에 갱신</span></div>
+    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
     <div class="sec-list" id="homeRank"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
     <div class="chk-list" id="homeKw"></div>
@@ -383,6 +391,17 @@
     <div class="tabs" id="campTabs"></div>
     <div id="campList"><div class="empty">불러오는 중...</div></div>
   </section>
+
+  <section id="meSection" hidden>
+    <div class="auto-line" style="margin:0 0 4px">여기 적어두면 TIDINGS 초안을 쓸 때 자동으로 반영돼요. 신제품 글은 "내가 쓰는 제품과 비교"로, 여행 글은 "다녀온 곳의 내 경험"으로 이어 써요. 적지 않은 제품이나 여행은 써본 것처럼, 다녀온 것처럼 쓰지 않아요.</div>
+    <div class="save-status" id="meState"></div>
+    <div class="sec-head"><span>📱 내가 쓰는 제품</span><span class="save-status" id="gearCount"></span></div>
+    <div id="gearList"></div>
+    <button type="button" class="btn-add more" id="gearAdd">+ 제품 추가</button>
+    <div class="sec-head"><span>✈️ 다녀온 여행</span><span class="save-status" id="tripCount"></span></div>
+    <div id="tripList"></div>
+    <button type="button" class="btn-add more" id="tripAdd">+ 여행 추가</button>
+  </section>
 </div>
 
 <div id="editorPage" hidden>
@@ -404,7 +423,7 @@
     <div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="feedPostState"></span></div>
     <input id="feedPostedUrl" class="search" type="url" placeholder="블로그에 올린 뒤 글 주소를 붙여넣어 주세요 (https://blog.naver.com/…)" autocomplete="off">
     <div class="save-status" style="margin-top:6px">주소를 넣어두면 이 주제가 실제로 검색에 걸리는지 매주 확인해서 알려드려요.</div>
-    <details class="ref-panel">
+    <details class="ref-panel" open>
       <summary>📋 참고 정보 (강조/반전 포인트, 이미지 소스, 링크)</summary>
       <div id="editorRef"></div>
     </details>
@@ -564,6 +583,7 @@
       html += '</div>';
     });
     feed.innerHTML = html;
+    hydrateFeedKw();
   }
 
   function fmtDate(d){
@@ -608,6 +628,7 @@
         '<div class="field"><span class="label">반전 포인트</span>' + esc(it.twist) + '</div>' +
         '<div class="title-bait">💬 ' + esc(it.title_bait) + '</div>' +
         (it.category_key === 'kurly_pick' ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(it.kurly_action_note || '컬리 큐레이터 홈에서 이 제품 검색 → 링크 생성 후 블로그에 삽입하세요 (르나 로그인 필요, 자동 생성 불가)') + '</div>' : '') +
+        (it.main_keyword ? '<div class="kw-res kw-res-embed" id="kwc-' + esc(it.id) + '" data-kw="' + esc(it.main_keyword) + '" hidden></div>' : '') +
         '<div class="links">' + links + '</div>' +
         (status === 'confirmed' ?
           '<div class="draft-note"><span class="status-txt">' + (it.draft_content ? '📝 초안 준비됨' : '✍️ 열어서 초안 쓰기') + '</span>' +
@@ -917,6 +938,7 @@
       links ? '이미지 소스(참고용, 글에 넣지 말 것): ' + links : '',
       '',
       '',
+      profilePromptBlock(it),
       skeleton ? '[이 카테고리의 소주제 뼈대 — 참고용]' : '',
       skeleton ? '아래는 이 분류(' + (it.category || it.category_key || '') + ')에서 보통 쓰는 소주제 구성이야. 그대로 베끼지 말고, [주제 정보]에 있는 재료에 맞게 골라 쓰거나 바꿔도 돼. 재료가 없는 소주제는 빼.' : '',
       skeleton || '',
@@ -1755,7 +1777,8 @@ async function writeReview(id){
     { k:'reserve_phone', label:'예약 전화번호 (담당자용 · 본문 노출 금지)', type:'tel' },
     { k:'companion', label:'동행인', type:'text' },
     { k:'link', label:'캠페인 링크', type:'url', full:true },
-    { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true }
+    { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true },
+    { k:'photo_folder', label:'사진 폴더 (구글 드라이브 링크 · 넣으면 📁 버튼이 이 주소로 가요)', type:'url', full:true }
   ];
 
   function teardownDetail(){
@@ -2049,7 +2072,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }
   }
 
-  function initDetail(id, isNew){
+  function initDetail(id){
     if(detailId === id && detailUnsub) return;
     teardownDetail();
     detailId = id;
@@ -2072,7 +2095,6 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }catch(e){
       document.getElementById('campDetail').innerHTML = '<div class="empty">불러오기에 실패했어요.</div>';
     }
-    if(isNew) setTimeout(function(){ var n = document.getElementById('f_name'); if(n) n.focus(); }, 50);
   }
 
   window.addEventListener('pagehide', function(){ Object.keys(detailFlush).forEach(function(k){ clearTimeout(detailTimers[k]); try{ detailFlush[k](); }catch(e){} }); });
@@ -2177,6 +2199,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
                '<span class="sec-c">' + label + move + '</span></div>'; }).join('')
       : '<div class="save-status">아직 확인한 글이 없어요. 발행한 글이 쌓이면 월요일에 순위를 재서 보여드려요.</div>';
+    var rankStateEl = document.getElementById('homeRankState');
+    if(rankStateEl) rankStateEl.textContent = ranked.length ? '월요일 12시 20분에 갱신' : '발행된 글이 없어 아직 순위를 볼 수 없어요';
 
     // 추천 키워드
     var kwEl = document.getElementById('homeKw');
@@ -2203,10 +2227,17 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var mon = new Date(t.getFullYear(), t.getMonth(), t.getDate() - day).getTime();
     return allItems.concat(camps).filter(function(x){ return x.posted_at && x.posted_at >= mon; }).length;
   }
+  /* 홈 상단 4칸 → EL.LIGHT 탭 매핑 (2026-09-28, 근거 없는 판단값 — 라벨 뜻에 맞춰 임의로 정함).
+     write="써야 할 글" → 캠페인 상태값 체계에서 '글쓰기 대기'(visited) 탭.
+     post="올릴 차례" → '초안 준비'(drafted) 탭.
+     week="이번 주 발행" → 정확히 이번 주만 거르는 탭은 없어서 가장 가까운 '포스팅 완료'(posted) 탭으로 보냄(기간 필터는 아님).
+     due는 원래 있던 동작 그대로 둠. */
+  var HOME_STAGE = { write:'visited', post:'drafted', due:'active', week:'posted' };
   document.getElementById('homeTodo').addEventListener('click', function(e){
     var b = e.target.closest('[data-home]'); if(!b) return;
     var k = b.dataset.home;
-    if(k === 'due'){ location.hash = 'camp'; setTimeout(function(){ campStage = 'active'; renderCamps(); }, 50); }
+    var stage = HOME_STAGE[k];
+    if(stage){ location.hash = 'camp'; setTimeout(function(){ campStage = stage; renderCamps(); }, 50); }
     else window.scrollTo({ top: document.getElementById('homeList').offsetTop - 60, behavior:'smooth' });
   });
 
@@ -2240,8 +2271,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     return '';
   }
 
-  function kwRender(d){
-    var res = document.getElementById('kwRes');
+  function kwRender(d, targetEl){
+    var res = targetEl || document.getElementById('kwRes');
     var t = d.trend || {};
     var showMult = t.multiple && t.trust !== '무시';   // 판정 보류인데 배수를 띄우면 앞뒤가 안 맞는다
     var spike = t.icon
@@ -2323,6 +2354,34 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '</div>' + rel;
     res.hidden = false;
   }
+
+  /* 카드 안에 자동으로 뜨는 키워드 분석 — 어떤 키워드로 골랐는지, 상승/급등 판정,
+     연관 키워드까지 카드에서 바로 보이게 한다 (2026-09-29 요청). 클릭해서 조회하는
+     위 검색창과 달리, 카드가 그려지면 main_keyword로 조용히 한 번만 불러온다. */
+  async function hydrateCardKw(el){
+    if(!el || el.dataset.kwDone) return;
+    el.dataset.kwDone = '1';
+    var kw = el.dataset.kw;
+    if(!kw) return;
+    await initKeywordMcp();
+    if(!mcpNs) return;              // claude.ai 밖에서는 조용히 건너뛴다 (검색창과 같은 제약)
+    try{
+      var res = await callKeyword(kw, true);
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) return;
+      kwRender(d, el);
+    }catch(e){ /* 카드 안 미니 패널이라 실패해도 조용히 넘어간다 */ }
+  }
+  function hydrateFeedKw(){
+    document.querySelectorAll('#feed .kw-res-embed[data-kw]').forEach(hydrateCardKw);
+  }
+  document.getElementById('feed').addEventListener('click', function(e){
+    var b = e.target.closest('.kw-res-embed button[data-kw]');
+    if(!b) return;
+    document.getElementById('kwInput').value = b.dataset.kw;
+    kwLookup(b.dataset.kw);
+    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 
   /* 실패는 코드마다 고치는 방법이 다르다. 하나로 뭉뚱그리면
      정작 화면을 살릴 수 있는 행동이 안 보인다. 그래서 코드별로 다르게 안내한다. */
@@ -2470,6 +2529,166 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(b) kwLookup(b.dataset.kw);
   });
 
+  /* ─────────────── 👤 내 정보: 내가 쓰는 제품 · 다녀온 여행 ───────────────
+     신제품 글은 "내가 쓰는 제품과 비교", 여행 글은 "다녀온 곳의 내 경험"으로 쓰게 하는 재료다.
+     여기 적힌 것만 초안에 1인칭 경험으로 들어간다 (buildFeedPrompt → profilePromptBlock).
+     저장: gear/{id}, trips/{id} */
+  var gearList = [], tripList = [];
+  var meTimers = {}, meFlush = {};
+  var GEAR_CATS = ['핸드폰','세탁기','건조기','로봇청소기','청소기','냉장고','TV','에어컨','기타 가전','가구','기타'];
+  var GEAR_FIELDS = [
+    { k:'cat',   label:'분류', type:'select' },
+    { k:'name',  label:'제품명 (모델까지)', type:'text', ph:'예) 아이폰16 프로 256GB' },
+    { k:'since', label:'쓴 기간', type:'text', ph:'예) 2024년 10월부터' },
+    { k:'note',  label:'써보니 어때요? (좋은 점 · 아쉬운 점)', type:'textarea', full:true, ph:'예) 배터리가 하루를 못 가요. 카메라는 만족.' }
+  ];
+  var TRIP_FIELDS = [
+    { k:'place', label:'여행지', type:'text', ph:'예) 교토' },
+    { k:'when',  label:'언제', type:'text', ph:'예) 2025년 4월' },
+    { k:'days',  label:'기간', type:'text', ph:'예) 3박4일' },
+    { k:'with',  label:'누구와', type:'text', ph:'예) 혼자, 친구' },
+    { k:'stay',  label:'숙소 · 교통', type:'text', full:true, ph:'예) 가와라마치 호텔, 공항에서 하루카 특급' },
+    { k:'spots', label:'가본 곳 · 먹은 것', type:'textarea', full:true, ph:'예) 후시미이나리 새벽에 감. 니시키시장 두부 도넛.' },
+    { k:'tip',   label:'팁 · 아쉬웠던 점 · 비용', type:'textarea', full:true, ph:'예) 버스가 너무 붐볐어요. 1일 교통비 얼마쯤.' }
+  ];
+
+  function newestFirst(a, b){ return (b.created_at || 0) - (a.created_at || 0); }
+
+  function meFieldHtml(col, id, f, v){
+    var did = 'me_' + col + '_' + id + '_' + f.k;
+    var attrs = ' id="' + esc(did) + '" data-col="' + col + '" data-id="' + esc(id) + '" data-k="' + f.k + '"';
+    var input;
+    if(f.type === 'select'){
+      var cats = GEAR_CATS.slice();
+      if(v && cats.indexOf(v) < 0) cats.unshift(v);
+      input = '<select' + attrs + '>' + cats.map(function(c){ return '<option' + (c === v ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
+    }else if(f.type === 'textarea'){
+      input = '<textarea' + attrs + ' rows="2" placeholder="' + esc(f.ph || '') + '">' + esc(v || '') + '</textarea>';
+    }else{
+      input = '<input' + attrs + ' type="text" value="' + esc(v || '') + '" placeholder="' + esc(f.ph || '') + '" autocomplete="off">';
+    }
+    return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + esc(did) + '">' + esc(f.label) + '</label>' + input + '</div>';
+  }
+
+  function meCardHtml(col, row, fields){
+    return '<div class="panel me-row"><div class="grid">' +
+      fields.map(function(f){ return meFieldHtml(col, row.id, f, row[f.k]); }).join('') +
+      '</div><div class="c-actions"><button type="button" class="btn-danger" data-me-del="' + col + '" data-id="' + esc(row.id) + '">삭제</button></div></div>';
+  }
+
+  function renderMe(force){
+    var root = document.getElementById('meSection');
+    if(!root || root.hidden) return;
+    var ae = document.activeElement;
+    // 입력 중에는 다시 그리지 않는다 (타이핑이 끊긴다)
+    if(!force && ae && root.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    document.getElementById('gearList').innerHTML = gearList.length
+      ? gearList.map(function(g){ return meCardHtml('gear', g, GEAR_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 제품 추가"로 지금 쓰는 핸드폰·가전을 적어주세요.</div>';
+    document.getElementById('tripList').innerHTML = tripList.length
+      ? tripList.map(function(t){ return meCardHtml('trips', t, TRIP_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 여행 추가"로 다녀온 곳을 적어주세요.</div>';
+    document.getElementById('gearCount').textContent = gearList.length ? gearList.length + '개' : '';
+    document.getElementById('tripCount').textContent = tripList.length ? tripList.length + '곳' : '';
+  }
+
+  async function meAdd(col){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+    var id = (col === 'gear' ? 'g' : 't') + Date.now().toString(36);
+    var now = Date.now();
+    var row = col === 'gear'
+      ? { cat:'핸드폰', name:'', since:'', note:'' }
+      : { place:'', when:'', days:'', with:'', stay:'', spots:'', tip:'' };
+    row.created_at = now; row.updated_at = now;
+    try{
+      await db.doc(col + '/' + id).set(row);
+      setTimeout(function(){
+        renderMe(true);
+        var el = document.getElementById('me_' + col + '_' + id + '_' + (col === 'gear' ? 'name' : 'place'));
+        if(el) el.focus();
+      }, 350);
+    }catch(err){
+      toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
+    }
+  }
+
+  function onMeInput(e){
+    var el = e.target, col = el && el.dataset && el.dataset.col;
+    if(!col || !db) return;
+    if(e.type === 'change' && el.tagName !== 'SELECT') return;
+    var id = el.dataset.id, k = el.dataset.k, key = col + '/' + id + '/' + k;
+    var st = document.getElementById('meState');
+    if(st) st.textContent = '입력 중...';
+    clearTimeout(meTimers[key]);
+    var run = function(){
+      delete meFlush[key];
+      var patch = {}; patch[k] = el.value; patch.updated_at = Date.now();
+      db.doc(col + '/' + id).update(patch).then(function(){
+        if(st) st.textContent = '저장됨 · ' + nowHM();
+      }).catch(function(){ if(st) st.textContent = '저장 실패 — 다시 시도해주세요'; });
+    };
+    meFlush[key] = run;
+    meTimers[key] = setTimeout(run, el.tagName === 'SELECT' ? 0 : 700);
+  }
+
+  (function(){
+    var root = document.getElementById('meSection');
+    root.addEventListener('input', onMeInput);
+    root.addEventListener('change', onMeInput);
+    root.addEventListener('click', async function(e){
+      if(e.target.closest('#gearAdd')){ meAdd('gear'); return; }
+      if(e.target.closest('#tripAdd')){ meAdd('trips'); return; }
+      var del = e.target.closest('[data-me-del]');
+      if(!del || !db) return;
+      var col = del.dataset.meDel, id = del.dataset.id;
+      var row = (col === 'gear' ? gearList : tripList).filter(function(x){ return x.id === id; })[0] || {};
+      var name = (col === 'gear' ? row.name : row.place) || '이 항목';
+      if(!(await ask(name + '을(를) 삭제할까요?\n되돌릴 수 없어요.', '삭제', true))) return;
+      Object.keys(meTimers).forEach(function(k){ if(k.indexOf(col + '/' + id + '/') === 0){ clearTimeout(meTimers[k]); delete meFlush[k]; } });
+      try{ await db.doc(col + '/' + id).delete(); toast('삭제했어요'); }
+      catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
+    });
+    window.addEventListener('pagehide', function(){ Object.keys(meFlush).forEach(function(k){ clearTimeout(meTimers[k]); try{ meFlush[k](); }catch(e){} }); });
+  })();
+
+  /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
+     제품은 여행 카드를 뺀 모든 카드에, 여행은 여행 카드에는 전부, 그 밖의 카드에는 주제에 지역명이 나올 때만 붙인다. */
+  function clip(s, n){ s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function profilePromptBlock(it){
+    var isTravel = /^travel/.test(it.category_key || '');
+    var hay = [it.topic, it.emphasis, it.twist, it.title_bait, it.main_keyword].join(' ');
+    var gear = isTravel ? [] : gearList.filter(function(g){ return String(g.name || '').trim(); });
+    var trips = tripList.filter(function(t){
+      var p = String(t.place || '').trim();
+      return p && (isTravel || hay.indexOf(p) >= 0);
+    }).slice(0, 10);
+    if(!gear.length && !trips.length) return '';
+    var out = ['[내 정보 — 르나가 직접 적어둔 기록. 이 블록이 있으면 위 [1인칭 경험으로]의 "직접 보고 먹고 다녀온 것처럼"보다 이 블록이 우선이야]'];
+    if(gear.length){
+      out.push('[르나가 지금 쓰는 제품]');
+      gear.forEach(function(g){
+        out.push('- ' + [g.cat, g.name].filter(Boolean).join(': ') + (g.since ? ' (' + clip(g.since, 30) + ')' : '') + (g.note ? ' / ' + clip(g.note, 300) : ''));
+      });
+    }
+    if(trips.length){
+      out.push('[르나가 다녀온 여행]');
+      trips.forEach(function(t){
+        var head = [t.when, t.days, t.with].map(function(x){ return clip(x, 30); }).filter(Boolean).join(' · ');
+        out.push('- ' + clip(t.place, 30) + (head ? ' | ' + head : '') +
+          (t.stay ? ' | 숙소·교통: ' + clip(t.stay, 200) : '') +
+          (t.spots ? ' | 가본 곳·먹은 것: ' + clip(t.spots, 400) : '') +
+          (t.tip ? ' | 팁·아쉬움·비용: ' + clip(t.tip, 300) : ''));
+      });
+    }
+    out.push('[이 블록 쓰는 법]');
+    out.push('- 신제품·신상품·새로 나온 제품 글이면 "비교·정리형"으로 써. 르나는 그 신제품을 써보지 않았어. "써봤더니", "사용해보니", "직접 들어봤더니"처럼 써본 것처럼 말하지 마.');
+    out.push('- 대신 [주제 정보]의 스펙·가격과 위 "지금 쓰는 제품"을 나란히 놓고 "저는 ~를 쓰고 있는데 ~는 이게 달라요" 식으로 비교해. 지금 쓰는 제품 쪽 경험은 적어둔 내용 안에서 1인칭으로 써도 돼.');
+    out.push('- 위에 적히지 않은 제품·여행을 써본 것처럼, 다녀온 것처럼 쓰지 마. 기록에 없는 가격·날씨·맛·배터리 시간 같은 디테일도 지어내지 마.');
+    out.push('- 주제와 관련 없는 항목은 무시해. 관련 항목이 없으면 비교 없이 정보로만 써.');
+    out.push('- 여행 글에서 위 [르나가 다녀온 여행]에 같은 지역이 있으면, 그 기록에 있는 내용만 "저는 ~에 다녀왔는데"처럼 1인칭 경험으로 이어 붙이고 나머지는 정보로 써. 기록이 없는 지역은 다녀왔다고 쓰지 마.');
+    return out.join('\n');
+  }
+
   /* ─────────────── 라우팅 ─────────────── */
   function show(view){
     document.getElementById('mainView').hidden = view !== 'main';
@@ -2481,14 +2700,17 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('homeSection').hidden = sec !== 'home';
     document.getElementById('feedSection').hidden = sec !== 'feed';
     document.getElementById('campSection').hidden = sec !== 'camp';
+    document.getElementById('meSection').hidden = sec !== 'me';
     document.querySelectorAll('#seg button').forEach(function(b){ b.classList.toggle('active', b.dataset.sec === sec); });
     var t = { home:['🏠 르나 블로그 홈', '오늘 뭘 해야 하는지, 글이 어떻게 되고 있는지 한눈에 봐요.'],
               feed:['🔥 TIDINGS', '매일 아침 8시에 올라오는 주제 중 쓸 것을 골라주세요.'],
-              camp:['📝 EL.LIGHT', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'] }[sec] || [];
+              camp:['📝 EL.LIGHT', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'],
+              me:['👤 내 정보', '내가 쓰는 제품과 다녀온 여행을 적어두면 초안에 반영돼요.'] }[sec] || [];
     document.getElementById('mainTitle').textContent = t[0] || '';
     document.getElementById('mainDesc').textContent = t[1] || '';
     if(sec === 'camp') renderCamps();
     else if(sec === 'feed') render();
+    else if(sec === 'me') renderMe(true);
     else renderHome();
   }
   document.getElementById('seg').addEventListener('click', function(e){
@@ -2507,16 +2729,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     teardownEditor();
     if(h === 'tpl'){ teardownDetail(); show('tpl'); window.scrollTo(0,0); renderTemplates(); return; }
     if(h.indexOf('camp/') === 0){
-      var rest = h.slice(5), qi = rest.indexOf('?');
-      var id = decodeURIComponent(qi >= 0 ? rest.slice(0, qi) : rest);
+      var id = decodeURIComponent(h.slice(5));
       show('camp');
       window.scrollTo(0,0);
-      if(db) initDetail(id, qi >= 0);
+      if(db) initDetail(id);
       return;
     }
     teardownDetail();
     show('main');
-    setSection(h === 'camp' ? 'camp' : (h === 'feed' ? 'feed' : 'home'));
+    setSection(h === 'camp' ? 'camp' : (h === 'feed' ? 'feed' : (h === 'me' ? 'me' : 'home')));
   }
 
   function toList(res){
@@ -2568,6 +2789,20 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         var list = toList(res);
         kwPicks = list[0] || null;
         renderHome();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('gear').limit(200).onSnapshot(function(res){
+        gearList = toList(res).sort(newestFirst);
+        renderMe();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('trips').limit(200).onSnapshot(function(res){
+        tripList = toList(res).sort(newestFirst);
+        renderMe();
       }, function(){});
     }catch(e){}
 
