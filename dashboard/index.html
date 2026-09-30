@@ -398,6 +398,7 @@
       <button class="tab" data-cat="ott" title="OTT" aria-label="OTT">🎬</button>
       <button class="tab" data-cat="kurly_pick" title="컬리" aria-label="컬리">🛒</button>
     </div>
+    <div class="links" id="cpaBar" hidden></div>
     <details class="fold" id="celebFold" hidden>
       <summary><span>⭐ 연예인 이름 랭킹</span><span class="save-status" id="celebState"></span></summary>
       <div class="inner" id="homeCelebs"></div>
@@ -511,6 +512,16 @@
     celeb_issue:   { label:"💄 연예인이슈(옛)",  chip:"chip-celeb"   },
     finance:       { label:"💰 재테크(옛)",      chip:"chip-finance" }
   };
+  /* 카테고리별 CPA 연결 사이트 (은아님이 알려준 주소). 애드포스트 카테고리는 CPA 없음. */
+  var CPA_LINKS = {
+    appliance:    [{ label:'네이버 브랜드커넥트', url:'https://brandconnect.naver.com/911666670459104/affiliate/products' }],
+    phone:        [{ label:'피클플러스 핸드폰', url:'https://pickleplus.notion.site/3a5d8cbc54dd80beb627daf197d4c2e0' }],
+    travel_issue: [{ label:'마이리얼트립', url:'https://myrealtrip.notion.site/0f9e7b83028d406cb046a69ca01feeb3' }],
+    travel_spot:  [{ label:'마이리얼트립 (숙소·액티비티)', url:'https://myrealtrip.notion.site/0f9e7b83028d406cb046a69ca01feeb3' }],
+    ott:          [{ label:'피클플러스 OTT 가이드', url:'https://pickleplus.notion.site/TIP-1c4d8cbc54dd8045aaede0cd6d33af28' },
+                   { label:'공동구독 링크', url:'https://pickle.plus/partners/partner-code/6BAA77E1' }],
+    kurly_pick:   [{ label:'컬리 큐레이터', url:'https://lounge.kurly.com/curator-program/main' }]
+  };
   var STATUS_META = {
     pending:       { label:"확인 대기중" },
     confirmed:     { label:"✅ 컨펌됨" },
@@ -610,6 +621,12 @@
     var feed = document.getElementById('feed');
     var cf = document.getElementById('celebFold');
     if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
+    var cb = document.getElementById('cpaBar');
+    if(cb){
+      var cl = CPA_LINKS[currentFilter] || [];
+      cb.hidden = !cl.length;
+      cb.innerHTML = cl.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">🔗 ' + esc(l.label) + '</a>'; }).join('');
+    }
     if(!itemsLoaded) return;
     if(!allItems.length){
       feed.innerHTML = '<div class="empty">아직 등록된 트렌드 후보가 없어요.<br>매일 아침 자동으로 채워져요 🌤️</div>';
@@ -2273,35 +2290,81 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                  '<span class="sec-c">' + (r.d ? esc(fmtShort(r.d)) : '') + '</span></a>'; }).join('')
       : '<div class="save-status">지금 할 일이 없어요. 새 주제가 올라오면 여기 뜨게 돼요 🙂</div>';
 
-    // 추천 키워드: 카테고리별로 묶어서 보여준다. 눌러서 바로 검색량 조회.
+    renderKwPicks();
+  }
+  // 추천 키워드: 카테고리별로 묶어서 보여준다. 눌러서 그 줄 아래에 검색량 조회를 펼친다.
+  function renderKwPicks(){
     var kwEl = document.getElementById('homeKw');
+    if(!kwEl) return;
     var picks = (kwPicks && kwPicks.picks) || [];
     if(!picks.length){
       kwEl.innerHTML = '<div class="save-status">아직 이번 주 키워드가 없어요. 월요일 12시 20분에 뽑아서 여기 올려요.</div>';
-    }else{
-      var groups = {}, order = [];
-      picks.forEach(function(p){ var g = p.category || '기타'; if(!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(p); });
-      kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회</div>' : '') +
-        order.map(function(g){
-          var mode = groups[g][0].mode || '';
-          return '<div class="sec-head" style="margin:8px 0 2px"><span style="font-size:13.5px">' + esc(g) + '</span><span class="save-status">' + esc(mode) + '</span></div>' +
-            groups[g].map(function(p){
-              var bits = ['월 ' + Number(p.volume || 0).toLocaleString() + '회'];
-              if(p.trend) bits.push(p.trend);
-              if(p.comp) bits.push('경쟁 ' + p.comp);
-              if(p.earn) bits.push(p.earn);
-              if(p.note) bits.push(p.note);
-              return '<button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
-                '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>';
-            }).join('');
-        }).join('');
+      return;
     }
+    var groups = {}, order = [];
+    picks.forEach(function(p){ var g = p.category || '기타'; if(!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(p); });
+    kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회</div>' : '') +
+      order.map(function(g){
+        var mode = groups[g][0].mode || '';
+        return '<div class="sec-head" style="margin:8px 0 2px"><span style="font-size:13.5px">' + esc(g) + '</span><span class="save-status">' + esc(mode) + '</span></div>' +
+          groups[g].map(function(p){
+            var bits = ['월 ' + Number(p.volume || 0).toLocaleString() + '회'];
+            if(p.trend) bits.push(p.trend);
+            if(p.comp) bits.push('경쟁 ' + p.comp);
+            if(p.earn) bits.push(p.earn);
+            if(p.note) bits.push(p.note);
+            return '<button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
+              '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' + inlineKwSlot(p.kw);
+          }).join('');
+      }).join('');
+    fillInlineKw(kwEl);
+  }
+
+  /* 키워드를 누르면 그 줄 바로 아래에 검색량 조회를 펼친다. 다시 누르면 접힌다.
+     조회는 뷰어의 커넥터로 나가서 Claude 토큰이 들지 않는다. */
+  var kwOpen = {};   // 키워드 -> {loading} | {data} | {error}
+  function inlineKwSlot(kw){
+    var st = kwOpen[kw];
+    if(!st) return '';
+    return '<div class="kw-res kw-inline" data-kwfor="' + esc(kw) + '" style="width:100%">' +
+      (st.loading ? '<div class="save-status">조회 중…</div>' : (st.error ? '<div class="save-status">' + esc(st.error) + '</div>' : '')) + '</div>';
+  }
+  function fillInlineKw(root){
+    root.querySelectorAll('.kw-inline[data-kwfor]').forEach(function(el){
+      var st = kwOpen[el.dataset.kwfor];
+      if(st && st.data) kwRender(st.data, el);
+    });
+  }
+  function rerenderKw(){ renderKwPicks(); renderCelebRank(); }
+  async function toggleInlineKw(kw){
+    if(kwOpen[kw]){ delete kwOpen[kw]; rerenderKw(); return; }
+    kwOpen[kw] = { loading: true }; rerenderKw();
+    await initKeywordMcp();
+    if(!mcpNs){ kwOpen[kw] = { error: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' }; rerenderKw(); return; }
+    try{
+      var res = await callKeyword(kw, true), d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      if(!kwOpen[kw]) return;                       // 조회 중에 접었으면 그대로 둔다
+      kwOpen[kw] = { data: d };
+    }catch(e){
+      if(!kwOpen[kw]) return;
+      var f = mcpFix(e);
+      kwOpen[kw] = { error: f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : '') };
+    }
+    rerenderKw();
+  }
+  function relatedJump(e){
+    var rel = e.target.closest('.kw-inline button[data-kw]');
+    if(!rel) return false;
+    document.getElementById('kwInput').value = rel.dataset.kw;
+    kwLookup(rel.dataset.kw);
+    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+    return true;
   }
   document.getElementById('homeKw').addEventListener('click', function(e){
+    if(relatedJump(e)) return;
     var b = e.target.closest('[data-pickkw]'); if(!b) return;
-    document.getElementById('kwInput').value = b.dataset.pickkw;
-    kwLookup(b.dataset.pickkw);
-    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+    toggleInlineKw(b.dataset.pickkw);
   });
   function weekPosted(){
     var t = new Date(); var day = (t.getDay() + 6) % 7;           // 월요일 시작
@@ -2899,8 +2962,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       (rows.length
         ? '<div class="chk-list">' + rows.slice(0, 15).map(function(r, i){
             return '<button type="button" class="chk" data-pickkw="' + esc(r.name) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
-              '<span class="mk">' + (i + 1) + '</span><span class="tx"><b>' + esc(r.name) + '</b><small>월 ' + Number(r.volume || 0).toLocaleString() + '회' + (r.trend ? ' · ' + esc(r.trend) : '') + '</small></span></button>'; }).join('') + '</div>'
+              '<span class="mk">' + (i + 1) + '</span><span class="tx"><b>' + esc(r.name) + '</b><small>월 ' + Number(r.volume || 0).toLocaleString() + '회' + (r.trend ? ' · ' + esc(r.trend) : '') + '</small></span></button>' + inlineKwSlot(r.name); }).join('') + '</div>'
         : '<div class="save-status">아직 랭킹이 없어요. 내 정보 탭에서 명단을 확인하고 갱신을 눌러주세요.</div>');
+    fillInlineKw(el);
   }
   var HARD_MCP = ['server_not_connected','needs_reauth','not_in_manifest','not_granted','capability_disabled','capability_removed','consent_required','blocked_by_policy','selection_required'];
   async function refreshCelebRank(){
@@ -2939,10 +3003,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   document.getElementById('homeCelebs').addEventListener('click', function(e){
     if(e.target.closest('#celebRefresh')){ refreshCelebRank(); return; }
+    if(relatedJump(e)) return;
     var b = e.target.closest('[data-pickkw]'); if(!b) return;
-    document.getElementById('kwInput').value = b.dataset.pickkw;
-    kwLookup(b.dataset.pickkw);
-    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+    toggleInlineKw(b.dataset.pickkw);
   });
   document.getElementById('celebForm').addEventListener('submit', async function(e){
     e.preventDefault();
