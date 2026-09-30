@@ -348,6 +348,7 @@
 
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
+    <div id="homeChannels"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
     <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
@@ -401,6 +402,10 @@
     <div class="sec-head"><span>✈️ 다녀온 여행</span><span class="save-status" id="tripCount"></span></div>
     <div id="tripList"></div>
     <button type="button" class="btn-add more" id="tripAdd">+ 여행 추가</button>
+    <div class="sec-head"><span>📡 확인할 채널</span><span class="save-status" id="chanCount"></span></div>
+    <div class="auto-line" style="margin:0 0 6px">주제를 찾을 때 훑어볼 인스타 계정이에요. 홈 화면의 "전체 열기" 버튼이 여기 적힌 주소를 한꺼번에 열어요.</div>
+    <div id="chanList"></div>
+    <button type="button" class="btn-add more" id="chanAdd">+ 채널 추가</button>
   </section>
 </div>
 
@@ -2154,6 +2159,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   function renderHome(){
     var todoEl = document.getElementById('homeTodo');
     if(!todoEl) return;
+    renderChannels();
     if(!campLoaded || !itemsLoaded){ todoEl.innerHTML = '<div class="empty">불러오는 중...</div>'; return; }
 
     // 오늘 써야 할 글 = 컨펌했는데 초안 없는 홈피드 + 방문 완료인데 초안 없는 체험단
@@ -2552,6 +2558,13 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     { k:'tip',   label:'팁 · 아쉬웠던 점 · 비용', type:'textarea', full:true, ph:'예) 버스가 너무 붐볐어요. 1일 교통비 얼마쯤.' }
   ];
 
+  var CHAN_FIELDS = [
+    { k:'name', label:'채널 이름', type:'text', ph:'예) 엄미 매거진' },
+    { k:'use',  label:'용도', type:'text', ph:'예) 연예인 명품, 패션 코디, 가전' },
+    { k:'url',  label:'주소', type:'text', full:true, ph:'https://www.instagram.com/계정명/' }
+  ];
+  var chanList = [], chanCheck = null;
+
   function newestFirst(a, b){ return (b.created_at || 0) - (a.created_at || 0); }
 
   function meFieldHtml(col, id, f, v){
@@ -2588,23 +2601,29 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('tripList').innerHTML = tripList.length
       ? tripList.map(function(t){ return meCardHtml('trips', t, TRIP_FIELDS); }).join('')
       : '<div class="save-status">아직 없어요. 아래 "+ 여행 추가"로 다녀온 곳을 적어주세요.</div>';
+    document.getElementById('chanList').innerHTML = chanList.length
+      ? chanList.map(function(c){ return meCardHtml('channels', c, CHAN_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 채널 추가"로 자주 보는 계정을 적어주세요.</div>';
+    document.getElementById('chanCount').textContent = chanList.length ? chanList.length + '개' : '';
     document.getElementById('gearCount').textContent = gearList.length ? gearList.length + '개' : '';
     document.getElementById('tripCount').textContent = tripList.length ? tripList.length + '곳' : '';
   }
 
   async function meAdd(col){
     if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
-    var id = (col === 'gear' ? 'g' : 't') + Date.now().toString(36);
+    var id = (col === 'gear' ? 'g' : (col === 'trips' ? 't' : 'c')) + Date.now().toString(36);
     var now = Date.now();
     var row = col === 'gear'
       ? { cat:'핸드폰', name:'', since:'', note:'' }
-      : { place:'', when:'', days:'', with:'', stay:'', spots:'', tip:'' };
+      : (col === 'trips'
+        ? { place:'', when:'', days:'', with:'', stay:'', spots:'', tip:'' }
+        : { name:'', use:'', url:'' });
     row.created_at = now; row.updated_at = now;
     try{
       await db.doc(col + '/' + id).set(row);
       setTimeout(function(){
         renderMe(true);
-        var el = document.getElementById('me_' + col + '_' + id + '_' + (col === 'gear' ? 'name' : 'place'));
+        var el = document.getElementById('me_' + col + '_' + id + '_' + (col === 'trips' ? 'place' : 'name'));
         if(el) el.focus();
       }, 350);
     }catch(err){
@@ -2638,11 +2657,13 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     root.addEventListener('click', async function(e){
       if(e.target.closest('#gearAdd')){ meAdd('gear'); return; }
       if(e.target.closest('#tripAdd')){ meAdd('trips'); return; }
+      if(e.target.closest('#chanAdd')){ meAdd('channels'); return; }
       var del = e.target.closest('[data-me-del]');
       if(!del || !db) return;
       var col = del.dataset.meDel, id = del.dataset.id;
-      var row = (col === 'gear' ? gearList : tripList).filter(function(x){ return x.id === id; })[0] || {};
-      var name = (col === 'gear' ? row.name : row.place) || '이 항목';
+      var src = col === 'gear' ? gearList : (col === 'trips' ? tripList : chanList);
+      var row = src.filter(function(x){ return x.id === id; })[0] || {};
+      var name = (col === 'trips' ? row.place : row.name) || '이 항목';
       if(!(await ask(name + '을(를) 삭제할까요?\n되돌릴 수 없어요.', '삭제', true))) return;
       Object.keys(meTimers).forEach(function(k){ if(k.indexOf(col + '/' + id + '/') === 0){ clearTimeout(meTimers[k]); delete meFlush[k]; } });
       try{ await db.doc(col + '/' + id).delete(); toast('삭제했어요'); }
@@ -2650,6 +2671,45 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     });
     window.addEventListener('pagehide', function(){ Object.keys(meFlush).forEach(function(k){ clearTimeout(meTimers[k]); try{ meFlush[k](); }catch(e){} }); });
   })();
+
+  /* ── 📡 확인할 채널: 홈에서 한 번에 열기 + 오늘 확인 기록 ──
+     window.open 은 뷰어에 따라 막히거나(null) 두 번째부터 팝업 차단될 수 있다. 막힌 개수를 알려주고 아래 링크로 열게 한다. */
+  function renderChannels(){
+    var el = document.getElementById('homeChannels');
+    if(!el) return;
+    var list = chanList.filter(function(c){ return safeUrl(c.url); });
+    if(!list.length){ el.innerHTML = ''; return; }
+    var last = (chanCheck && chanCheck.last_checked_at) || 0;
+    var lastD = last ? new Date(last) : null;
+    var doneToday = !!lastD && lastD.toDateString() === new Date().toDateString();
+    var stateTxt = doneToday ? '오늘 확인 완료 · ' + lastD.getHours() + ':' + pad(lastD.getMinutes())
+      : (lastD ? '마지막 확인 ' + (lastD.getMonth() + 1) + '/' + lastD.getDate() : '아직 확인 기록이 없어요');
+    el.innerHTML =
+      '<div class="sec-head"><span>📡 확인할 채널</span><span class="save-status">' + esc(stateTxt) + '</span></div>' +
+      '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm primary" id="chanOpenAll">📂 전체 열기 (' + list.length + ')</button>' +
+        '<button type="button" class="btn-sm good" id="chanDone">✓ 오늘 확인 끝</button></div>' +
+      '<div class="sec-list">' + list.map(function(c){
+        return '<a class="sec-item" href="' + esc(safeUrl(c.url)) + '" target="_blank" rel="noopener"><span class="sec-t">' + esc(c.name || hostOf(c.url)) + '</span>' +
+               '<span class="sec-p">' + esc(c.use || '') + '</span><span class="sec-c">열기</span></a>'; }).join('') + '</div>';
+  }
+  document.getElementById('homeChannels').addEventListener('click', async function(e){
+    if(e.target.closest('#chanOpenAll')){
+      var list = chanList.filter(function(c){ return safeUrl(c.url); });
+      var blocked = 0;
+      list.forEach(function(c){
+        var w = null;
+        try{ w = window.open(safeUrl(c.url), '_blank'); }catch(err){}
+        if(w){ try{ w.opener = null; }catch(err){} } else { blocked++; }
+      });
+      toast(blocked ? blocked + '개는 브라우저가 막았어요. 아래 링크를 눌러 열어주세요.' : list.length + '개 채널을 열었어요');
+      return;
+    }
+    if(e.target.closest('#chanDone')){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+      try{ await db.doc('settings/channel_check').set({ last_checked_at: Date.now() }); toast('오늘 확인 끝으로 기록했어요'); }
+      catch(err){ toast('저장에 실패했어요. 다시 시도해주세요.'); }
+    }
+  });
 
   /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
      제품은 여행 카드를 뺀 모든 카드에, 여행은 여행 카드에는 전부, 그 밖의 카드에는 주제에 지역명이 나올 때만 붙인다. */
@@ -2803,6 +2863,20 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       db.collection('trips').limit(200).onSnapshot(function(res){
         tripList = toList(res).sort(newestFirst);
         renderMe();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('channels').limit(200).onSnapshot(function(res){
+        chanList = toList(res).sort(function(a, b){ return (a.created_at || 0) - (b.created_at || 0); });
+        renderMe(); renderChannels();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/channel_check').onSnapshot(function(snap){
+        chanCheck = snap && snap.exists ? snap.data() : null;
+        renderChannels();
       }, function(){});
     }catch(e){}
 
