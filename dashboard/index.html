@@ -1098,7 +1098,7 @@
     if(feedWriting) return;
     var it = feedItem;
     if(!it){ toast('주제를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
-    if(it.needs_read){ toast(it.origin === 'keyword' ? '아직 자료 조사 전인 카드예요. Claude에게 "주제 조사해줘"라고 해주세요.' : '아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
+    if(it.needs_read){ toast(it.origin === 'keyword' ? '아직 자료 조사 전인 카드예요. 다음 주제 생성 때 조사해서 채워요.' : '아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
     var ctl = new AbortController();
     feedWriting = ctl;
@@ -2417,7 +2417,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     try{
       await db.doc('items/' + id).set({
         date: localToday(), category_key: key, category: String(meta.label).replace(/^\S+\s/, ''),
-        topic: kw, emphasis: angle ? '각도 제안: ' + angle : '', twist: '자료 조사 전이에요. Claude에게 "주제 조사해줘"라고 하면 강조·반전 포인트와 출처를 채워요.', title_bait: '',
+        topic: kw, emphasis: angle ? '각도 제안: ' + angle : '', twist: '자료 조사 전이에요. 다음 주제 생성 때 이 카드를 조사해서 강조·반전 포인트와 출처를 채워요.', title_bait: '',
         main_keyword: kw, keyword_volume: Number(p.volume) || 0,
         trend_note: kw + ' 월 ' + Number(p.volume || 0).toLocaleString() + '회' + (p.trend ? ' ' + p.trend : '') + (pre ? ' · ' + pre : ''),
         source_url: '', status: 'pending', origin: 'keyword', needs_read: true, created_at: Date.now()
