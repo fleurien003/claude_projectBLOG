@@ -321,6 +321,14 @@
   .addbox select{ flex:1 1 160px; min-width:0; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
   .link-row{ cursor:default; }
   .link-row a{ color:inherit; text-decoration:none; }
+  /* 접었다 펴는 묶음 */
+  .fold{ background:var(--card); border:1px solid var(--line); border-radius:14px; margin:0 0 12px; box-shadow:var(--shadow); }
+  .fold > summary{ cursor:pointer; padding:12px 14px; font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:8px; list-style:none; }
+  .fold > summary::-webkit-details-marker{ display:none; }
+  .fold > summary::after{ content:'▸'; color:var(--sub); margin-left:auto; padding-left:8px; }
+  .fold[open] > summary::after{ content:'▾'; }
+  .fold > .inner{ padding:0 14px 14px; }
+  .fold .inner .sec-head:first-child{ margin-top:2px; }
   .me-row{ margin-bottom:10px; }
   .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
   @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
@@ -353,12 +361,14 @@
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div id="homeCelebs"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">카테고리별</span></div>
     <div class="chk-list" id="homeKw"></div>
   </section>
 
   <section id="feedSection" hidden>
+    <details class="fold" id="toolsFold">
+      <summary><span>📡 확인할 채널 · 📎 쓸 링크</span><span class="save-status" id="toolsHint"></span></summary>
+      <div class="inner">
     <div id="homeChannels"></div>
     <div class="sec-head"><span>📎 쓸 링크</span><span class="save-status" id="linkCount"></span></div>
     <form class="panel addbox" id="linkForm">
@@ -374,18 +384,24 @@
       <div class="help">추가하면 아래 카테고리에 카드가 바로 만들어져요. 캡션을 붙여넣으면 카드 내용까지 바로 채우고, 링크만 넣으면 Claude에게 "쓸 링크 봐줘"라고 할 때 채워요.</div>
     </form>
     <div class="sec-list" id="linkList"></div>
+      </div>
+    </details>
     <div class="tabs" id="tabs">
       <button class="tab active" data-cat="all">전체</button>
-      <button class="tab" data-cat="celeb_fashion">👜 연예인·명품</button>
-      <button class="tab" data-cat="fashion_coord">🧥 패션 코디</button>
-      <button class="tab" data-cat="travel_spot">🗺️ 명소·축제</button>
-      <button class="tab" data-cat="costco_daiso">🛍️ 코스트코·다이소</button>
-      <button class="tab" data-cat="appliance">🏠 가전·가구</button>
-      <button class="tab" data-cat="phone">📱 핸드폰</button>
-      <button class="tab" data-cat="travel_issue">✈️ 여행</button>
-      <button class="tab" data-cat="ott">🎬 OTT</button>
-      <button class="tab" data-cat="kurly_pick">🛒 컬리</button>
+      <button class="tab" data-cat="celeb_fashion" title="연예인·명품" aria-label="연예인·명품">👜</button>
+      <button class="tab" data-cat="fashion_coord" title="패션 코디" aria-label="패션 코디">🧥</button>
+      <button class="tab" data-cat="travel_spot" title="명소·축제" aria-label="명소·축제">🗺️</button>
+      <button class="tab" data-cat="costco_daiso" title="코스트코·다이소" aria-label="코스트코·다이소">🛍️</button>
+      <button class="tab" data-cat="appliance" title="가전·가구" aria-label="가전·가구">🏠</button>
+      <button class="tab" data-cat="phone" title="핸드폰" aria-label="핸드폰">📱</button>
+      <button class="tab" data-cat="travel_issue" title="여행" aria-label="여행">✈️</button>
+      <button class="tab" data-cat="ott" title="OTT" aria-label="OTT">🎬</button>
+      <button class="tab" data-cat="kurly_pick" title="컬리" aria-label="컬리">🛒</button>
     </div>
+    <details class="fold" id="celebFold" hidden>
+      <summary><span>⭐ 연예인 이름 랭킹</span><span class="save-status" id="celebState"></span></summary>
+      <div class="inner" id="homeCelebs"></div>
+    </details>
     <div id="feed">
       <div class="empty">불러오는 중...</div>
     </div>
@@ -589,6 +605,8 @@
 
   function render(){
     var feed = document.getElementById('feed');
+    var cf = document.getElementById('celebFold');
+    if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
     if(!itemsLoaded) return;
     if(!allItems.length){
       feed.innerHTML = '<div class="empty">아직 등록된 트렌드 후보가 없어요.<br>매일 아침 자동으로 채워져요 🌤️</div>';
@@ -2772,6 +2790,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(!el) return;
     var open = linkListData.filter(function(l){ return l.status !== 'done'; });
     document.getElementById('linkCount').textContent = open.length ? open.length + '개 읽기 대기' : '';
+    var th = document.getElementById('toolsHint'); if(th) th.textContent = open.length ? '읽기 대기 ' + open.length : '';
     el.innerHTML = open.slice(0, 30).map(function(l){
       var memo = String(l.memo || '').replace(/\s+/g, ' ').trim();
       return '<div class="sec-item link-row"><span class="sec-t">' + esc(l.cat || '') + '</span>' +
@@ -2862,15 +2881,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      동명이인은 따로 거르지 않는다 (은아님 결정). */
   var celebList = [], celebRank = null, celebBusy = false, celebProgress = '';
   function renderCelebRank(){
-    var el = document.getElementById('homeCelebs');
+    var el = document.getElementById('homeCelebs'), st = document.getElementById('celebState');
     if(!el) return;
     var rows = (celebRank && celebRank.rows) || [];
     var d = celebRank && celebRank.updated_at ? new Date(celebRank.updated_at) : null;
     var state = celebBusy ? celebProgress
-      : (d ? '갱신 ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()) +
+      : (d ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()) +
              ((celebRank.failed || []).length ? ' · 실패 ' + celebRank.failed.length : '') : '');
+    if(st) st.textContent = state;
     el.innerHTML =
-      '<div class="sec-head"><span>⭐ 연예인 이름 랭킹</span><span class="save-status">' + esc(state) + '</span></div>' +
       '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm primary" id="celebRefresh"' + ((celebBusy || !celebList.length) ? ' disabled' : '') + '>🔄 랭킹 갱신 (' + celebList.length + '명)</button>' +
         '<span class="save-status">검색량 순 · 눌러서 조회</span></div>' +
       (rows.length
