@@ -329,6 +329,11 @@
   .fold[open] > summary::after{ content:'▾'; }
   .fold > .inner{ padding:0 14px 14px; }
   .fold .inner .sec-head:first-child{ margin-top:2px; }
+  .pick-row{ display:flex; gap:6px; align-items:stretch; }
+  .pick-row .chk{ flex:1; min-width:0; }
+  .pick-row .btn-sm{ flex:none; align-self:center; }
+  .card-x{ border:none; background:none; color:var(--sub); font-size:17px; line-height:1; cursor:pointer; padding:2px 4px; }
+  .card-x:hover{ color:var(--danger-ink); }
   .me-row{ margin-bottom:10px; }
   .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
   @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
@@ -705,7 +710,8 @@
       '<div class="card' + (isOld ? ' is-old' : '') + '" data-id="' + esc(it.id) + '">' +
         '<div class="card-top">' +
           '<span class="chip ' + meta.chip + '">' + meta.label + '</span>' +
-          '<span class="status-badge status-' + status + '">' + statusMeta.label + '</span>' +
+          '<span style="display:inline-flex;align-items:center;gap:8px"><span class="status-badge status-' + status + '">' + statusMeta.label + '</span>' +
+            '<button type="button" class="card-x" data-action="delete" title="삭제" aria-label="이 카드 삭제">✕</button></span>' +
         '</div>' +
         '<div class="topic">' + esc(it.topic) + '</div>' +
         (fresh ? '<div class="fresh">🕐 <b>' + esc(fresh) + '</b></div>' : '') +
@@ -744,6 +750,19 @@
 
     if(action === 'open-editor'){
       location.hash = 'draft/' + encodeURIComponent(id);
+      return;
+    }
+
+    if(action === 'delete'){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+      if(!(await ask('정말 삭제하실 건가요?\n\n' + (item.topic || '이 카드') + '\n\n삭제하면 되돌릴 수 없어요.', '삭제', true))) return;
+      try{
+        await db.doc('items/' + id).delete();
+        if(item.link_id){ try{ await db.doc('links/' + item.link_id).delete(); }catch(err){} }   // 링크로 만든 카드면 읽기 대기 목록에서도 뺀다
+        allItems = allItems.filter(function(i){ return i.id !== id; });
+        render(); renderHome();
+        toast('삭제했어요');
+      }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
       return;
     }
 
@@ -1079,7 +1098,7 @@
     if(feedWriting) return;
     var it = feedItem;
     if(!it){ toast('주제를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
-    if(it.needs_read){ toast('아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
+    if(it.needs_read){ toast(it.origin === 'keyword' ? '아직 자료 조사 전인 카드예요. Claude에게 "주제 조사해줘"라고 해주세요.' : '아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
     var ctl = new AbortController();
     feedWriting = ctl;
@@ -2327,8 +2346,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
             if(p.comp) bits.push('경쟁 ' + p.comp);
             if(p.earn) bits.push(p.earn);
             if(p.note) bits.push(p.note);
-            return '<button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
-              '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' + inlineKwSlot(p.kw);
+            var has = hasKwCard(p.kw);
+            return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
+              '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' +
+              '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button></div>' + inlineKwSlot(p.kw);
           }).join('');
       }).join('');
     fillInlineKw(kwEl);
@@ -2375,8 +2396,39 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
     return true;
   }
+  /* 추천 키워드의 '주제 선정' — 그 카테고리 탭에 주제 카드를 바로 만든다. DB 쓰기만 하므로 Claude 토큰이 들지 않는다.
+     페이지는 웹 자료를 못 읽으니 카드는 '자료 조사 전' 상태로 만들고(초안 쓰기 막힘), Claude 가 "주제 조사해줘"를 받으면 채운다. */
+  function hasKwCard(kw){
+    return allItems.some(function(i){ return i.origin === 'keyword' && i.main_keyword === kw && i.status !== 'posted'; });
+  }
+  async function makePickCard(kw){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var p = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === kw; })[0];
+    if(!p) return;
+    var key = LINK_CAT_KEY[p.category];
+    if(!key){ toast('이 카테고리는 카드를 만들 수 없어요.'); return; }
+    if(hasKwCard(kw)){ toast('이미 카드가 있어요'); return; }
+    var meta = CAT_META[key] || { label: p.category };
+    var note = String(p.note || '');
+    var m = note.match(/각도:\s*(.+)$/);
+    var angle = m ? m[1].trim() : '';
+    var pre = note.replace(/(^|\s*·\s*)각도:.*$/, '').trim();
+    var id = 'k' + Date.now().toString(36);
+    try{
+      await db.doc('items/' + id).set({
+        date: localToday(), category_key: key, category: String(meta.label).replace(/^\S+\s/, ''),
+        topic: kw, emphasis: angle ? '각도 제안: ' + angle : '', twist: '자료 조사 전이에요. Claude에게 "주제 조사해줘"라고 하면 강조·반전 포인트와 출처를 채워요.', title_bait: '',
+        main_keyword: kw, keyword_volume: Number(p.volume) || 0,
+        trend_note: kw + ' 월 ' + Number(p.volume || 0).toLocaleString() + '회' + (p.trend ? ' ' + p.trend : '') + (pre ? ' · ' + pre : ''),
+        source_url: '', status: 'pending', origin: 'keyword', needs_read: true, created_at: Date.now()
+      });
+      toast('주제 카드를 만들었어요. ' + String(meta.label).replace(/^\S+\s/, '') + ' 탭에서 확인하세요');
+    }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '카드를 만들지 못했어요. 다시 시도해주세요.'); }
+  }
   document.getElementById('homeKw').addEventListener('click', function(e){
     if(relatedJump(e)) return;
+    var mk = e.target.closest('[data-pickmk]');
+    if(mk){ if(!mk.disabled) makePickCard(mk.dataset.pickmk); return; }
     var b = e.target.closest('[data-pickkw]'); if(!b) return;
     toggleInlineKw(b.dataset.pickkw);
   });
