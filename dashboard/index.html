@@ -413,6 +413,10 @@
       <summary><span>⭐ 연예인 이름 랭킹</span><span class="save-status" id="celebState"></span></summary>
       <div class="inner" id="homeCelebs"></div>
     </details>
+    <details class="fold" id="newsFold" hidden>
+      <summary><span id="newsTitle">📰 카테고리 뉴스</span><span class="save-status" id="newsState"></span></summary>
+      <div class="inner" id="newsBox"></div>
+    </details>
     <div id="feed">
       <div class="empty">불러오는 중...</div>
     </div>
@@ -651,6 +655,9 @@
     var feed = document.getElementById('feed');
     var cf = document.getElementById('celebFold');
     if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
+    var nf = document.getElementById('newsFold');
+    if(nf) nf.hidden = !CAT_META[currentFilter] || !NEWS_DEFAULT_Q[currentFilter];
+    renderNews();
     updateCpaBar();
     if(!itemsLoaded) return;
     if(!allItems.length){
@@ -3503,7 +3510,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      뉴스 조회는 토큰 0, 기사 하나 정리할 때만 Claude 토큰이 든다. 사실은 기사 제목·요약에 있는 것만 쓴다. */
   var celebTopics = {}, celebTopicBusy = {}, newsMaking = {};
   function hasNewsCard(link){
-    return !!link && allItems.some(function(i){ return i.origin === 'celeb' && i.source_url === link && i.status !== 'posted'; });
+    return !!link && allItems.some(function(i){ return (i.origin === 'celeb' || i.origin === 'news') && i.source_url === link && i.status !== 'posted'; });
   }
   function celebTopicPanel(name){
     var t = celebTopics[name];
@@ -3525,10 +3532,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }).join('');
     return h + '</div>';
   }
-  function newsTopicPrompt(name, n){
+  function newsTopicPrompt(name, n, catLabel){
     return [
-      '너는 르나의 네이버 홈피드(연예인·명품 카테고리) 글감 카드를 정리하는 조수야. 아래 뉴스 기사 하나를 글감으로 정리해.',
-      '', '[인물] ' + name, '[기사 제목] ' + n.title, '[기사 요약] ' + n.description, '[매체] ' + (n.outlet || ''),
+      '너는 르나의 네이버 홈피드(' + (catLabel || '연예인·명품') + ' 카테고리) 글감 카드를 정리하는 조수야. 아래 뉴스 기사 하나를 글감으로 정리해.',
+      '', '[' + (catLabel ? '검색어' : '인물') + '] ' + name, '[기사 제목] ' + n.title, '[기사 요약] ' + n.description, '[매체] ' + (n.outlet || ''),
       '', '[규칙]',
       '- 제목·요약에 있는 인물·브랜드·제품명·가격·날짜만 써. 없는 숫자나 사실을 지어내지 마. 요약에 없는 내용은 쓰지 마.',
       '- topic: 한 줄. 누구 + 무엇(브랜드·제품·장소)이 드러나게.',
@@ -3573,34 +3580,137 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     celebTopics[name] = out;
     renderCelebRank(); saveCelebTopics();
   }
-  async function makeCelebCard(name, idx){
-    var n = ((celebTopics[name] || {}).items || [])[idx];
-    var key = name + '|' + idx;
+  /* 기사 하나 → Claude 가 글감으로 정리 → items 카드. 연예인 랭킹(origin 'celeb')과 카테고리 뉴스(origin 'news')가 같이 쓴다. */
+  async function makeNewsCard(o){
+    var n = o.item, key = o.busyKey;
     if(!n || !db || newsMaking[key]) return;
     if(hasNewsCard(n.link)){ toast('이미 카드가 있어요'); return; }
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
-    newsMaking[key] = true; renderCelebRank();
+    newsMaking[key] = true; o.rerender();
     try{
-      var res = await sampleFn(newsTopicPrompt(name, n), { cache: false });
+      var meta = CAT_META[o.catKey];
+      var catName = String(meta.label).replace(/^\S+\s/, '');
+      var res = await sampleFn(newsTopicPrompt(o.query, n, o.origin === 'celeb' ? '' : catName), { cache: false });
       var j = parseJsonLoose(res && res.text);
       if(!j || !j.topic) throw new Error('parse');
-      var meta = CAT_META.celeb_fashion;
-      var r = (celebRank && celebRank.rows || []).filter(function(y){ return y.name === name; })[0] || {};
+      var r = (celebRank && celebRank.rows || []).filter(function(y){ return y.name === o.query; })[0] || {};
       await db.doc('items/n' + Date.now().toString(36)).set({
-        date: localToday(), category_key: 'celeb_fashion', category: String(meta.label).replace(/^\S+\s/, ''),
+        date: localToday(), category_key: o.catKey, category: catName,
         topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''),
-        main_keyword: name, keyword_volume: Number(r.volume) || 0,
-        trend_note: name + (r.volume ? ' 월 ' + Number(r.volume).toLocaleString() + '회' : '') + ' · 뉴스: ' + n.title,
-        source_url: n.link || '', status: 'pending', origin: 'celeb', needs_read: false, created_at: Date.now()
+        main_keyword: o.origin === 'celeb' ? o.query : '', keyword_volume: o.origin === 'celeb' ? (Number(r.volume) || 0) : 0,
+        trend_note: o.query + (o.origin === 'celeb' && r.volume ? ' 월 ' + Number(r.volume).toLocaleString() + '회' : '') + ' · 뉴스: ' + n.title,
+        source_url: n.link || '', status: 'pending', origin: o.origin, needs_read: false, created_at: Date.now()
       });
-      toast('주제 카드를 만들었어요. 연예인·명품 탭에서 확인하세요');
+      toast('주제 카드를 만들었어요. ' + catName + ' 탭에서 확인하세요');
     }catch(err){
       if(err && (err.code === 'not_granted' || err.code === 'sampling_disabled' || err.code === 'not_declared' || err.code === 'capability_disabled' || err.code === 'capability_removed')) sampleBlocked = true;
       toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '카드를 만들지 못했어요. 다시 눌러주세요.');
     }
     delete newsMaking[key];
-    renderCelebRank();
+    o.rerender();
   }
+  function makeCelebCard(name, idx){
+    var n = ((celebTopics[name] || {}).items || [])[idx];
+    return makeNewsCard({ item: n, busyKey: name + '|' + idx, catKey: 'celeb_fashion', query: name, origin: 'celeb', rerender: renderCelebRank });
+  }
+
+  /* ── 📰 카테고리 뉴스: 탭마다 그 카테고리 검색어로 네이버 뉴스를 조회하고, 기사마다 🎯 주제선정.
+     검색어 기본값은 임의로 정한 값(근거 없는 판단값)이다. 칩으로 바로 고르거나 직접 입력한다. 이번 주 추천 키워드(keyword_picks)도 칩으로 뜬다.
+     조회는 토큰 0, 🎯 로 기사 하나를 정리할 때만 Claude 토큰이 든다. 결과는 화면에만 두고 DB에는 저장하지 않는다. */
+  var NEWS_DEFAULT_Q = {
+    celeb_fashion: ['연예인 명품 가방', '연예인 공항패션'], fashion_coord: ['연예인 코디', '가을 패션 트렌드'],
+    travel_spot: ['단풍 명소', '지역 축제'], costco_daiso: ['코스트코 신상', '다이소 신상'],
+    appliance: ['신제품 가전', '로봇청소기'], phone: ['스마트폰 출시', '아이폰 신제품'],
+    travel_issue: ['국내여행 추천', '해외여행 항공권'], ott: ['넷플릭스 신작', '디즈니플러스 신작'], kurly_pick: ['컬리 신상', '컬리 추천']
+  };
+  var newsByCat = {};   // catKey -> {q, sort, loading, error, items, outlet_count, fetched_at}
+  function newsQueries(cat){
+    var seen = {}, out = [];
+    ((kwPicks && kwPicks.picks) || []).forEach(function(p){ if(LINK_CAT_KEY[p.category] === cat && p.kw && !seen[p.kw]){ seen[p.kw] = 1; out.push({ q: p.kw, pick: true }); } });
+    (NEWS_DEFAULT_Q[cat] || []).forEach(function(q){ if(!seen[q]){ seen[q] = 1; out.push({ q: q }); } });
+    return out;
+  }
+  function renderNews(){
+    var box = document.getElementById('newsBox'), cat = currentFilter;
+    if(!box || !NEWS_DEFAULT_Q[cat]) return;
+    var ae = document.activeElement;
+    if(ae && ae.id === 'newsInput') return;                         // 입력 중에는 다시 그리지 않는다
+    var st = newsByCat[cat] || { q: '', sort: 'date' };
+    var meta = CAT_META[cat];
+    var ttl = document.getElementById('newsTitle'); if(ttl) ttl.textContent = '📰 ' + String(meta.label).replace(/^\S+\s/, '') + ' 뉴스';
+    var ns = document.getElementById('newsState'); if(ns) ns.textContent = st.loading ? '조회 중…' : (st.fetched_at ? '"' + st.q + '" ' + (st.items || []).length + '건' : '');
+    var h = '<div class="draft-btns" style="margin-bottom:8px">' + newsQueries(cat).map(function(x){
+        return '<button type="button" class="btn-sm' + (x.q === st.q ? ' primary' : '') + '" data-newsq="' + esc(x.q) + '">' + (x.pick ? '🔑 ' : '') + esc(x.q) + '</button>'; }).join('') + '</div>' +
+      '<form class="kw-form" id="newsForm" style="margin-bottom:8px"><input id="newsInput" type="search" placeholder="검색어 직접 입력" value="' + esc(st.q) + '" autocomplete="off" enterkeyhint="search">' +
+        '<select id="newsSort" aria-label="정렬" style="font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:0 8px"><option value="date"' + (st.sort === 'date' ? ' selected' : '') + '>최신순</option><option value="sim"' + (st.sort === 'sim' ? ' selected' : '') + '>정확도순</option></select>' +
+        '<button type="submit"' + (st.loading ? ' disabled' : '') + '>조회</button></form>';
+    if(st.loading) h += '<div class="save-status">뉴스 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(st.fetched_at && !(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요. 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.</div>';
+    else{
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += st.items.map(function(n, i){
+        var made = hasNewsCard(n.link), busy = !!newsMaking['cat|' + cat + '|' + i];
+        var when = n.pubDate ? new Date(n.pubDate) : null;
+        return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + esc(n.title) + '</b>' +
+          '<small>' + esc(n.outlet || '') + (when && !isNaN(when) ? ' · ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + pad(when.getMinutes()) : '') +
+          (safeUrl(n.link) ? ' · <a href="' + esc(n.link) + '" target="_blank" rel="noopener">기사 열기</a>' : '') + '</small>' +
+          (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+          '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" data-newsmk="' + i + '"' + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+      }).join('');
+    }
+    box.innerHTML = h;
+  }
+  async function newsLookup(cat, q, sort){
+    q = String(q || '').trim();
+    if(!q){ toast('검색어를 넣어주세요.'); return; }
+    var st = newsByCat[cat] = { q: q, sort: sort || 'date', loading: true };
+    renderNews();
+    var args = { query: q, display: 15, sort: st.sort };
+    try{
+      await initKeywordMcp();
+      if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' };
+      var res;
+      try{ res = await mcpNs.callTool(MCP_SERVER, 'news_mentions', args, { cache: { staleTime: 300000 } }); }
+      catch(e){
+        var f0 = mcpFix(e);
+        if(f0.retryable){ await sleep(Math.min(f0.after || 2500, 15000) + Math.random() * 800); res = await mcpNs.callTool(MCP_SERVER, 'news_mentions', args, { cache: { staleTime: 300000 } }); }
+        else throw e;
+      }
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      st.outlet_count = d.outlet_count || 0; st.fetched_at = Date.now();
+      st.items = (d.items || []).slice(0, 15).map(function(n){
+        return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), outlet: n.outlet || '', pubDate: n.pubDate || '' };
+      });
+    }catch(e){
+      var f = mcpFix(e);
+      st.error = f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : '');
+    }
+    st.loading = false;
+    renderNews();
+  }
+  document.getElementById('newsBox').addEventListener('click', function(e){
+    var q = e.target.closest('[data-newsq]');
+    if(q){ var cur = newsByCat[currentFilter] || {}; newsLookup(currentFilter, q.dataset.newsq, cur.sort); return; }
+    var mk = e.target.closest('[data-newsmk]');
+    if(mk && !mk.disabled){
+      var cat = currentFilter, i = Number(mk.dataset.newsmk), st = newsByCat[cat];
+      makeNewsCard({ item: st && st.items && st.items[i], busyKey: 'cat|' + cat + '|' + i, catKey: cat, query: st && st.q, origin: 'news', rerender: renderNews });
+    }
+  });
+  document.getElementById('newsBox').addEventListener('submit', function(e){
+    e.preventDefault();
+    var inp = document.getElementById('newsInput'), srt = document.getElementById('newsSort');
+    newsLookup(currentFilter, inp && inp.value, srt && srt.value);
+  });
+  document.getElementById('newsBox').addEventListener('change', function(e){
+    if(e.target.id !== 'newsSort') return;
+    var st = newsByCat[currentFilter];
+    if(st && st.q) newsLookup(currentFilter, st.q, e.target.value);
+    else { newsByCat[currentFilter] = { q: '', sort: e.target.value }; }
+  });
   function renderCelebRank(){
     var el = document.getElementById('homeCelebs'), st = document.getElementById('celebState');
     if(!el) return;
