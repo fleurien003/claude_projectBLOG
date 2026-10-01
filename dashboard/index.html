@@ -1236,7 +1236,7 @@
 
   /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 월(등록/방문/마감 기준) · 유형 · 자동 입력 상태.
      탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. ── */
-  var campFilter = { platform:'', monthBy:'created', month:'', type:'', auto:'' };
+  var campFilter = { platform:'', monthBy:'due', month:'', type:'', auto:'' };
   var MONTH_BY = { created:'등록', visit:'방문', due:'마감' };
   var AUTO_OPTS = [['done','기본 정보 채워짐'],['pending','자동 입력 대기'],['failed','자동 입력 실패'],['noprompt','프롬프트 없음'],['nodraft','초안 없음'],['cal','캘린더 등록됨']];
   function monthOf(c, by){ var d = by === 'visit' ? c.visit_date : (by === 'due' ? c.due : c.created); return d ? String(d).slice(0, 7) : ''; }
