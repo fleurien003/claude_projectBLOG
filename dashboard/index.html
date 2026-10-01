@@ -530,6 +530,7 @@
   var BRANDCONNECT = 'https://brandconnect.naver.com/911666670459104/affiliate/products';
   var PICKLE = 'https://pickle.plus/partners/dashboard';
   var MRT = 'https://partner.myrealtrip.com/welcome/marketing_partner';
+  var CREATOR_ADVISOR = 'https://creator-advisor.naver.com/naver_blog/fleurien003/trends#main-inflow-trend';   // 모든 탭(전체·카테고리·완료)에 붙는 버튼 (2026-10-01 르나 요청)
   var CPA_LINKS = {
     appliance:    [{ label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
     phone:        [{ label:'피클플러스', url:PICKLE }, { label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
@@ -546,6 +547,7 @@
     chanList.forEach(function(c){
       if(safeUrl(c.url) && c.cat && LINK_CAT_KEY[c.cat] === currentFilter) links.push({ icon:'📡', label: c.name || hostOf(c.url), url: safeUrl(c.url) });
     });
+    links.push({ icon:'📊', label:'creator-advisor', url: CREATOR_ADVISOR });
     cb.hidden = !links.length;
     cb.innerHTML = links.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + l.icon + ' ' + esc(l.label) + '</a>'; }).join('');
   }
