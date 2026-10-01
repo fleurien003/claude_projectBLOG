@@ -1,0 +1,109 @@
+From eb39f3b0423b901a26f99a247b3dbf453bc6637e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 1 Oct 2026 16:08:08 +0000
+Subject: [PATCH] =?UTF-8?q?MCP=20=EB=8F=84=EA=B5=AC=20blog=5Fsearch=20?=
+ =?UTF-8?q?=EC=B6=94=EA=B0=80=20(=EB=84=A4=EC=9D=B4=EB=B2=84=20=EB=B8=94?=
+ =?UTF-8?q?=EB=A1=9C=EA=B7=B8=20=EA=B2=80=EC=83=89,=20/blog-search=20?=
+ =?UTF-8?q?=EB=9D=BC=EC=9A=B0=ED=8A=B8)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Rq4jy5Dw5u2QMTzstdQjs3
+---
+ main.py | 64 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/main.py b/main.py
+index 16b0e55..53cb4a0 100644
+--- a/main.py
++++ b/main.py
+@@ -858,6 +858,53 @@ def _news_search_impl(query: str, display: int = 10, sort: str = "date") -> Dict
+     }
+ 
+ 
++# -------------------------------------------------------------
++# 블로그 검색 — 네이버 API HUB 블로그 검색(search/blog)
++#
++# 대시보드가 MCP 로 불러 쓴다. 호출은 이 서버가 하고 Claude 토큰은 들지 않는다.
++# 결과는 제목·요약(앞부분)·주소뿐이라 본문이 필요하면 blog_read 로 읽는다
++# (blog.naver.com 주소만 읽힌다 — readable 로 표시).
++# postdate 는 네이버가 주는 YYYYMMDD 그대로.
++# -------------------------------------------------------------
++def _blog_search_impl(query: str, display: int = 10, sort: str = "sim") -> Dict[str, Any]:
++    if sort not in ("date", "sim"):
++        sort = "sim"
++    display = min(max(display, 1), 30)
++
++    res, info = naver_api("search/blog", params={"query": query, "display": display, "sort": sort})
++    if res is None:
++        return {"error": "블로그 검색 실패", "tried": info}
++
++    data = res.json()
++    from urllib.parse import urlparse
++
++    items = []
++    for it in data.get("items", []):
++        link = it.get("link") or ""
++        host = urlparse(link).netloc.replace("www.", "")
++        items.append({
++            "title": _strip(it.get("title", "")),
++            "description": _strip(it.get("description", "")),
++            "link": link,
++            "blogger": _strip(it.get("bloggername", "")),
++            "postdate": it.get("postdate", ""),
++            "readable": host in ("blog.naver.com", "m.blog.naver.com"),
++        })
++
++    return {"query": query, "total": data.get("total", 0), "items": items}
++
++
++@app.get("/blog-search", dependencies=[Depends(rate_guard)])
++def blog_search_route(query: str, display: int = 10, sort: str = "sim"):
++    """네이버 블로그 검색. 제목·요약·주소·작성자·작성일을 돌려준다.
++
++    query: 검색어.
++    sort: sim(정확도순, 기본) 또는 date(최신순).
++    display: 1~30 (기본 10).
++    """
++    return _blog_search_impl(query=query, display=display, sort=sort)
++
++
+ @app.get("/news-search", dependencies=[Depends(rate_guard)])
+ def news_search(query: str, display: int = 10, sort: str = "date"):
+     """네이버 뉴스 검색. 소재의 고유명 그대로 검색해 실제 화제성(다룬 매체 수·날짜)을 확인한다.
+@@ -1230,7 +1277,7 @@ def health():
+         "mcp_path_secret": bool(MCP_SECRET),
+         "rate_per_hour": RATE_PER_HOUR,
+         "warning": "" if RELAY_TOKEN else "RELAY_TOKEN이 없어 주소를 아는 누구나 /analyze를 호출할 수 있습니다.",
+-        "endpoints": ["/health", "/diag", "/probe", "/probe-place", "/probe-kakao", "/read-doc", "/read-blog", "/page", "/research", "/news-search", "/trend-scan", "/trend", "/analyze"],
++        "endpoints": ["/health", "/diag", "/probe", "/probe-place", "/probe-kakao", "/read-doc", "/read-blog", "/page", "/research", "/news-search", "/blog-search", "/trend-scan", "/trend", "/analyze"],
+     }
+ 
+ 
+@@ -1290,6 +1337,21 @@ def blog_read(url: str, limit: int = 9000) -> Dict[str, Any]:
+     return read_blog(url=url, limit=limit)
+ 
+ 
++@mcp.tool
++def blog_search(query: str, display: int = 10, sort: str = "sim") -> Dict[str, Any]:
++    """네이버 블로그 글을 검색해 제목·요약·주소·작성자·작성일을 돌려준다.
++
++    다른 블로거들이 그 주제를 어떻게 쓰는지, 제목에 어떤 말을 쓰는지 볼 때 쓴다.
++    요약은 글 앞부분뿐이다. 본문이 필요하면 items[].link 를 blog_read 로 읽는다
++    (readable 이 true 인 blog.naver.com 주소만 읽힌다).
++
++    query: 검색어.
++    sort: sim(정확도순, 기본) 또는 date(최신순).
++    display: 1~30(기본 10).
++    """
++    return blog_search_route(query=query, display=display, sort=sort)
++
++
+ @mcp.tool
+ def news_mentions(query: str, display: int = 10, sort: str = "date") -> Dict[str, Any]:
+     """소재(인물+장소·음식·브랜드 등 고유명)가 실제로 뉴스에서 화제였는지 확인한다.
+-- 
+2.43.0
+
