@@ -55,6 +55,7 @@
     --shadow: 0 2px 12px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box;}
+  html, input, select, textarea{ accent-color:#ffb0b0; }   /* 달력·드롭다운 선택 강조색 (2026-10-01 르나 요청) */
   body{ background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",sans-serif; }
   .wrap{ max-width:760px; margin:0 auto; padding:20px 16px 56px; }
   header.top{ margin-bottom:18px; }
@@ -207,6 +208,7 @@
   .stat .v{ font-size:20px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums; }
   .stat .v small{ font-size:12px; font-weight:700; color:var(--sub); margin-left:2px; }
   .stat.hot .v{ color:var(--accent); }
+  .stat .acc{ font-size:11.5px; font-weight:700; color:var(--sub); margin-top:2px; font-variant-numeric:tabular-nums; }
   @media (max-width:520px){ .stats{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
   .toolbar{ display:flex; gap:8px; align-items:center; margin:14px 0 0; }
@@ -253,6 +255,8 @@
   .f textarea{ resize:vertical; line-height:1.6; min-height:72px; }
   .f input:focus, .f textarea:focus, .d-status select:focus, .search:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
   .f .row{ display:flex; gap:6px; }
+  .f .chk-inline{ display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:12.5px; font-weight:700; color:var(--ink); }
+  .f .chk-inline input{ width:auto; margin:0; }
   .f .row input{ min-width:0; }
   .f .help{ font-size:11.5px; color:var(--sub); margin-top:4px; line-height:1.5; }
   .inline-link{ font-size:12px; color:var(--sub); text-decoration:none; border:1px solid var(--line); padding:5px 10px; border-radius:8px; }
@@ -526,6 +530,7 @@
   var BRANDCONNECT = 'https://brandconnect.naver.com/911666670459104/affiliate/products';
   var PICKLE = 'https://pickle.plus/partners/dashboard';
   var MRT = 'https://partner.myrealtrip.com/welcome/marketing_partner';
+  var CREATOR_ADVISOR = 'https://creator-advisor.naver.com/naver_blog/fleurien003/trends#main-inflow-trend';   // 모든 탭(전체·카테고리·완료)에 붙는 버튼 (2026-10-01 르나 요청)
   var CPA_LINKS = {
     appliance:    [{ label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
     phone:        [{ label:'피클플러스', url:PICKLE }, { label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
@@ -542,6 +547,7 @@
     chanList.forEach(function(c){
       if(safeUrl(c.url) && c.cat && LINK_CAT_KEY[c.cat] === currentFilter) links.push({ icon:'📡', label: c.name || hostOf(c.url), url: safeUrl(c.url) });
     });
+    links.push({ icon:'📊', label:'creator-advisor', url: CREATOR_ADVISOR });
     cb.hidden = !links.length;
     cb.innerHTML = links.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + l.icon + ' ' + esc(l.label) + '</a>'; }).join('');
   }
@@ -1092,8 +1098,9 @@
       '- 소주제 줄 앞에는 빈 줄 세 개, 소주제 줄과 첫 문단 사이에는 빈 줄 한 개.',
       '- 문장 하나의 길이는 공백 포함 **45~90자**가 기본이야. 20자짜리 단문만 나열하면 르나 글이 아니게 돼.',
       '- "~는데요", "~고요", "~다 보니", "~라서", "~지만" 같은 연결어미로 문장을 이어 호흡을 길게 가져가.',
-      '- 르나는 말하듯이 써. 종결어미는 "-더라고요 / -했어요 / -거든요 / -거예요 / -것 같아요 / -고요"를 섞어 써. **"~거예요"와 "~것 같아요"를 "~겠죠"로 바꾸지 마.** 르나가 실제로 쓰는 말이야.',
-      '- 고칠 건 네 가지뿐이야. **"완전히/매우/상당히/굉장히" → "완전/진짜/너무"**, **"~합니다/~됩니다" → "~해요/~돼요"**, **"-겠어요" → "-겠죠"**, 늘어진 번역투는 풀어 쓰기.',
+      '- 르나는 말하듯이 써 (2026-10-01 발행글 실측). 종결어미는 "-더라고요 / -했어요 / -거든요 / -는데요 / -것 같아요 / -고요"를 섞고, **"-더라구요 / -구요"를 2:1로 섞어.** **"-거예요"는 1~2번만**, **"-죠"로 서술을 끝내지 마** ("-죠?"는 질문에서만).',
+      '- **독자에게 묻는 문장 2~3개** ("~잖아요!", "~죠?"), **ㅠㅠ/ㅎㅎ 1~2번, "!!" 1번**까지. 분위기 잡는 문장·광고 카피 문장은 쓰지 마. 마무리는 2문장 이내.',
+      '- 강조 부사 "완전히/매우/상당히/굉장히" → "완전/진짜/너무/넘", "~합니다/~됩니다" → "~해요/~돼요", "-겠어요" → "-겠죠", 늘어진 번역투는 풀어 쓰기. **추측 표현("~것 같아요")은 글 전체에서 2번까지** — 그 이상은 재료 부족이니 소주제를 줄여.',
       '- **"와닿다"는 절대 쓰지 마.** 무엇이 어떻게 좋은지 구체적으로 써.',
       '- 문장 끝 여운은 `~` 와 `!` 를 섞어 써. **글 한 편에 합쳐서 3~4번까지만.** 남발하면 가벼워 보여.',
       '- 전체 1,500자 전후 (1,300~1,700자). 마크다운 기호(#, *, >)나 굵은 글씨는 쓰지 마.',
@@ -1233,17 +1240,55 @@
     { key:'all',     label:'전체' }
   ];
 
-  /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 월(등록/방문/마감 기준) · 유형 · 자동 입력 상태.
-     탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. ── */
-  var campFilter = { platform:'', monthBy:'created', month:'', type:'', auto:'' };
-  var MONTH_BY = { created:'등록', visit:'방문', due:'마감' };
+  /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 유형 · 지원금 · 마감일 · 상태 · 자동 입력 상태 + 정렬.
+     탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. (월 선택은 10/1 요청으로 뺐다) ── */
+  var campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy:'', sortDir:'asc' };
+  /* 정렬은 노션처럼 "기준 속성 + 방향"이다 (2026-10-01 르나 요청). 고른 값은 이 브라우저에 기억해 둔다. */
+  try{ var sv = JSON.parse(localStorage.getItem('campSort') || 'null'); if(sv && sv.by) { campFilter.sortBy = sv.by; campFilter.sortDir = sv.dir === 'desc' ? 'desc' : 'asc'; } }catch(e){}
+  function saveSort(){ try{ localStorage.setItem('campSort', JSON.stringify({ by: campFilter.sortBy, dir: campFilter.sortDir })); }catch(e){} }
   var AUTO_OPTS = [['done','기본 정보 채워짐'],['pending','자동 입력 대기'],['failed','자동 입력 실패'],['noprompt','프롬프트 없음'],['nodraft','초안 없음'],['cal','캘린더 등록됨']];
-  function monthOf(c, by){ var d = by === 'visit' ? c.visit_date : (by === 'due' ? c.due : c.created); return d ? String(d).slice(0, 7) : ''; }
-  function filterActive(){ return !!(campFilter.platform || campFilter.month || campFilter.type || campFilter.auto); }
+  var AMOUNT_OPTS = [['none','지원금 없음(미기재)'],['has','지원금 있음']];
+  var DUE_OPTS = [['none','마감일 없음'],['has','마감일 있음'],['over','마감 지남'],['week','7일 이내 마감']];
+  var SORT_BY = [['due','마감일'],['visit','방문일'],['created','등록일'],['amount','지원금'],['name','업체명']];
+  var SORT_DIR = {
+    date:   [['asc','오래된 항목부터'],['desc','새로운 항목부터']],
+    amount: [['asc','적은 금액부터'],['desc','많은 금액부터']],
+    name:   [['asc','가나다순'],['desc','가나다 역순']]
+  };
+  function sortKind(by){ return by === 'amount' ? 'amount' : (by === 'name' ? 'name' : 'date'); }
+  /* 값이 비어 있는 건(마감일 없음, 지원금 미기재 등)은 방향과 상관없이 늘 맨 뒤 */
+  function sortVal(c, by){
+    if(by === 'due') return c.due ? String(c.due).slice(0, 10) : null;
+    if(by === 'visit') return c.visit_date ? String(c.visit_date).slice(0, 10) + (c.visit_time ? ' ' + c.visit_time : '') : null;
+    if(by === 'created') return c.created ? String(c.created).slice(0, 10) : null;
+    if(by === 'amount') return Number(c.amount) > 0 ? Number(c.amount) : null;
+    if(by === 'name') return displayName(c) || null;
+    return null;
+  }
+  function cmpSort(a, b, by, dir){
+    var va = sortVal(a, by), vb = sortVal(b, by);
+    if(va === null && vb === null) return 0;
+    if(va === null) return 1;
+    if(vb === null) return -1;
+    var r = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'ko');
+    return dir === 'desc' ? -r : r;
+  }
+  function filterActive(){ return !!(campFilter.platform || campFilter.type || campFilter.amount || campFilter.due || campFilter.status || campFilter.auto); }
   function matchFilter(c){
     if(campFilter.platform && (c.platform || '') !== campFilter.platform) return false;
-    if(campFilter.month && monthOf(c, campFilter.monthBy) !== campFilter.month) return false;
     if(campFilter.type && (c.types || []).indexOf(campFilter.type) < 0) return false;
+    if(campFilter.amount){
+      var has = Number(c.amount) > 0;
+      if((campFilter.amount === 'has') !== has) return false;
+    }
+    if(campFilter.due){
+      var n = daysUntil(c.due), f = campFilter.due;
+      if(f === 'none' && n !== null) return false;
+      if(f === 'has' && n === null) return false;
+      if(f === 'over' && !(n !== null && n < 0)) return false;
+      if(f === 'week' && !(n !== null && n >= 0 && n <= 7)) return false;
+    }
+    if(campFilter.status && (c.status || '상태 미정') !== campFilter.status) return false;
     if(campFilter.auto){
       var a = c.auto_status || '';
       if(campFilter.auto === 'noprompt') return !c.prompt;
@@ -1257,16 +1302,22 @@
   function renderCampFilters(){
     var el = document.getElementById('campFilters');
     if(!el) return;
-    var plat = {}, months = {}, types = {};
+    var plat = {}, types = {}, stat = {}, noAmt = 0, noDue = 0;
     camps.forEach(function(c){
       if(c.platform) plat[c.platform] = (plat[c.platform] || 0) + 1;
-      var m = monthOf(c, campFilter.monthBy); if(m) months[m] = (months[m] || 0) + 1;
       (c.types || []).forEach(function(t){ if(t) types[t] = (types[t] || 0) + 1; });
+      var st = c.status || '상태 미정'; stat[st] = (stat[st] || 0) + 1;
+      if(!(Number(c.amount) > 0)) noAmt++;
+      if(daysUntil(c.due) === null) noDue++;
     });
     var platList = Object.keys(plat).sort(function(a, b){ return plat[b] - plat[a] || a.localeCompare(b); });
-    var monthList = Object.keys(months).sort().reverse();
     var typeList = Object.keys(types).sort(function(a, b){ return types[b] - types[a] || a.localeCompare(b); });
-    var key = JSON.stringify([platList, monthList, typeList, campFilter.monthBy]);
+    var statOrder = []; CAMP_STAGES.forEach(function(sg){ sg.statuses.forEach(function(v){ statOrder.push(v); }); });
+    var statList = Object.keys(stat).sort(function(a, b){
+      var ia = statOrder.indexOf(a), ib = statOrder.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b);
+    });
+    var key = JSON.stringify([platList, typeList, stat, noAmt, noDue, campFilter.sortBy]);
     if(key !== lastFilterKey){
       lastFilterKey = key;
       function sel(f, label, opts, allLabel){
@@ -1275,10 +1326,13 @@
       }
       el.innerHTML =
         sel('platform', '플랫폼', platList.map(function(p){ return [p, p + ' (' + plat[p] + ')']; }), '플랫폼 전체') +
-        '<select data-f="monthBy" aria-label="월 기준">' + Object.keys(MONTH_BY).map(function(k){ return '<option value="' + k + '">' + MONTH_BY[k] + '월 기준</option>'; }).join('') + '</select>' +
-        sel('month', '월', monthList.map(function(m){ return [m, m.replace('-', '년 ') + '월 (' + months[m] + ')']; }), '모든 달') +
+        sel('amount', '지원금', AMOUNT_OPTS.map(function(o){ return [o[0], o[1] + (o[0] === 'none' ? ' (' + noAmt + ')' : '')]; }), '지원금 전체') +
+        sel('due', '마감일', DUE_OPTS.map(function(o){ return [o[0], o[1] + (o[0] === 'none' ? ' (' + noDue + ')' : '')]; }), '마감일 전체') +
+        sel('status', '상태', statList.map(function(v){ return [v, v + ' (' + stat[v] + ')']; }), '상태 전체') +
         sel('type', '유형', typeList.map(function(t){ return [t, t + ' (' + types[t] + ')']; }), '유형 전체') +
-        sel('auto', '상태', AUTO_OPTS, '자동 입력 전체') +
+        sel('auto', '자동 입력', AUTO_OPTS, '자동 입력 전체') +
+        sel('sortBy', '정렬 기준', SORT_BY, '정렬: 기본') +
+        (campFilter.sortBy ? '<select data-f="sortDir" aria-label="정렬 방향">' + SORT_DIR[sortKind(campFilter.sortBy)].map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') + '</select>' : '') +
         '<button type="button" class="btn-link" id="campFilterReset">필터 지우기</button>' +
         '<span class="save-status" id="campFilterCount"></span>';
     }
@@ -1288,12 +1342,13 @@
   document.getElementById('campFilters').addEventListener('change', function(e){
     var s = e.target.closest('select[data-f]'); if(!s) return;
     campFilter[s.dataset.f] = s.value;
-    if(s.dataset.f === 'monthBy') campFilter.month = '';
+    if(s.dataset.f === 'sortBy') campFilter.sortDir = 'asc';
+    if(s.dataset.f === 'sortBy' || s.dataset.f === 'sortDir') saveSort();
     renderCamps();
   });
   document.getElementById('campFilters').addEventListener('click', function(e){
     if(!e.target.closest('#campFilterReset')) return;
-    campFilter = { platform:'', monthBy: campFilter.monthBy, month:'', type:'', auto:'' };
+    campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy: campFilter.sortBy, sortDir: campFilter.sortDir };
     renderCamps();
   });
 
@@ -1311,7 +1366,7 @@
     if(key === 'drafted') return stageOf(c) === 'drafted' || stageOf(c) === 'visited';
     return stageOf(c) === key;
   }
-  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date; }
+  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date && !c.product_review; }
 
   /* 예약 문자 문구 — docs/03 2번 원문 그대로. 업체명은 지역 수식어를 뺀 핵심 상호명.
      방문일은 은아님이 정하므로(자동화는 날짜를 제안하지 않는다) 비어 있으면 빈칸으로 둔다. */
@@ -1339,12 +1394,13 @@
       var d = c.visit_date || c.due || '';
       return s + ((d.slice(0,7) === month && stageOf(c) !== 'dropped') ? (Number(c.amount)||0) : 0);
     }, 0);
+    var totalSum = camps.reduce(function(s,c){ return s + (stageOf(c) !== 'dropped' ? (Number(c.amount)||0) : 0); }, 0);
 
     document.getElementById('campStats').innerHTML =
       '<button type="button" class="stat' + (visitSoon.length?' hot':'') + '" data-go="booked"><div class="k">오늘·내일 방문</div><div class="v">' + visitSoon.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat' + (dueSoon.length?' hot':'') + '" data-go="urgent"><div class="k">마감 3일 이내</div><div class="v">' + dueSoon.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat' + (drafted.length?' hot':'') + '" data-go="drafted"><div class="k">초안 확인·업로드</div><div class="v">' + drafted.length + '<small>건</small></div></button>' +
-      '<button type="button" class="stat" data-go="posted"><div class="k">' + (+month.slice(5)) + '월 지원금</div><div class="v">' + (monthSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '<small>만원</small></div></button>';
+      '<button type="button" class="stat" data-go="posted"><div class="k">' + (+month.slice(5)) + '월 지원금</div><div class="v">' + (monthSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '<small>만원</small></div><div class="acc">누적 ' + (totalSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '만원</div></button>';
 
     var badge = document.getElementById('campCount');
     var todo = dueSoon.length + drafted.length;
@@ -1381,6 +1437,9 @@
       }
       return (b.visit_date||b.due||'').localeCompare(a.visit_date||a.due||'');
     });
+    if(campFilter.sortBy){
+      list.sort(function(a,b){ return cmpSort(a, b, campFilter.sortBy, campFilter.sortDir); });
+    }
 
     var el = document.getElementById('campList');
     if(!list.length){
@@ -1412,6 +1471,7 @@
     if(c.auto_status === 'pending' && !na.hint) na.hint = '🤖 자동 입력 대기 중';
     if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
+    if(c.product_review) meta.push('<b>제품 리뷰</b>');
     if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>' + (c.calendar_event_id ? ' 📅' : ''));
     if(c.due) meta.push('마감 <b>' + esc(fmtShort(c.due)) + '</b>');
     if(c.amount) meta.push('지원 <b>' + esc(won(c.amount)) + '</b>');
@@ -1493,7 +1553,8 @@
       '',
       '[경험은 전부 르나 본인의 경험으로]',
       '- 아래 [프롬프트]의 경험 칸(6️⃣ 경험 / 3️⃣ 나의 실사용 후기 경험담)이 르나가 실제로 받은 것과 느낀 점이야. 후기 문장이 있으면 가장 중요하게 살려.',
-      '- 5️⃣ 참고할 관련 정보에 있는 다른 사람들의 후기 내용은 "후기에서 ~라고 해요", "~라고 알려져 있어요"처럼 남의 말로 옮기지 말고, 르나가 직접 먹고(받고) 느낀 것처럼 1인칭으로 생생하게 써. 예: "국물이 깔끔하다는 후기가 많아요" (X) → "국물이 깔끔해서 마지막 숟가락까지 계속 손이 갔어요" (O)',
+      '- 5️⃣ 참고할 관련 정보에 있는 다른 사람들의 후기 중 **르나가 받은 메뉴·시술·서비스의 맛·식감·느낌**은 르나가 직접 겪은 것처럼 1인칭으로 생생하게 써. 예: "국물이 깔끔하다는 후기가 많아요" (X) → "국물이 깔끔해서 마지막 숟가락까지 계속 손이 갔어요" (O)',
+      '- **그러나 르나가 확인하지 않은 수치·구성·다른 메뉴·남들의 선택은 1인칭으로 단정하지 마.** "~라는 후기가 많아요", "~한 조합이 가장 많더라구요"로 써. 예: "뼈가 3개씩 들어가요" (X) → "뼈가 3개씩 들어간다는 후기가 많아요" (O) (2026-10-01 르나 발행글 실측)',
       '- 맛·식감·분위기·효과·서비스를 구체적인 장면으로 묘사해서 읽는 사람이 상상할 수 있게 해.',
       '- **[프롬프트]의 1️⃣ 위치 및 주차 칸에 적힌 📍 주소 ☎️ 전화번호 🕖 영업시간 🚘 주차 값은 있는 그대로 그대로 옮겨 써. 절대 바꾸거나 빼지 마.**',
       '- **🚘 주차 : 주차가 된다고 확인된 가게에만 🚘 줄을 써. 주차 불가이거나 주차 정보를 못 찾으면 🚘 줄을 아예 빼고, 소주제 이름도 "1. 위치"로 써. 주차 이야기 자체를 쓰지 말고 "방문 전 매장 문의"로도 채우지 마.** (2026-09-24 르나 확정)',
@@ -1521,6 +1582,10 @@
       '- **같은 단어를 제목 안에서 반복하지 마.** 예: "부천실용음악학원 보컬학원 위드뮤직실용음악학원" (X — 실용음악학원이 두 번) → "부천 보컬 발성 레슨 위드뮤직실용음악학원" (O)',
       '- 제목의 롱테일 키워드는 본문에도 **7회 이상** 자연스럽게 나와야 해. 억지로 끼워 넣어 문장이 어색해지면 안 돼.',
       '',
+      (c.keywords || c.mission) ? '[캠페인 필수 조건 — 업체가 요구한 것이라 반드시 지켜]' : '',
+      c.keywords ? '- 업체 요청 키워드: ' + String(c.keywords).trim() + '. 이 중 1개를 메인으로 골라 **제목에 1회, 본문에 3회 이상**(아래 미션에 횟수가 적혀 있으면 그 횟수) 띄어쓰기 그대로 넣고, 나머지 키워드도 본문에 1회 이상 + 해시태그 30개 안에 전부 넣어.' : '',
+      c.mission ? '- 체험단 미션: ' + String(c.mission).trim().replace(/\s*\n\s*/g, ' / ') + '. 글자 수·키워드 횟수 조건은 글에서 바로 지켜. 사진 수·영상·지도·배너 같은 발행 조건은 글에 쓰지 마 (르나가 올릴 때 챙겨).' : '',
+      (c.keywords || c.mission) ? '' : '',
       '[형식]',
       '[문체 - 르나 실제 블로그 문체 / 2026-09-22 재확정]',
       '- **글의 맨 첫 문장은 한 문장만 단독으로 써.** 도입부 첫 줄에 다른 문장을 붙이지 마.',
@@ -1536,18 +1601,19 @@
       '- 첫 줄: 최종 제목 한 줄. 빈 줄 한 개. 그다음 도입부(공감·상황으로 후킹), 소주제별 본문, 마무리.',
       '- **소주제 번호는 `1.` `2.` `3.` 형식으로 쓴다.** ①②③ 같은 기호는 쓰지 마. [프롬프트]에 ①②③으로 적혀 있어도 본문에서는 숫자와 점으로 바꿔 쓴다.',
       '',
-      '[어투 - 2026-09-22 확정]',
-      '- 르나는 말하듯이 써. **다만 고치는 건 "어미"가 아니라 "글로 쓴 티"야.** 종결어미를 억지로 바꾸면 오히려 르나 말투에서 멀어져.',
-      '- **고칠 것은 이 네 가지뿐이야.**',
-      '  1) 강조 부사 "완전히 / 매우 / 상당히 / 굉장히" → **"완전 / 진짜 / 너무"** (예: "완전히 달랐어요" → "완전 달랐어요~")',
-      '  2) 합쇼체가 섞인 서술 "~합니다 / ~됩니다 / ~입니다" → **"~해요 / ~돼요 / ~이에요"** (예: "잡으시면 됩니다" → "잡으시면 돼요")',
-      '  3) **"-겠어요" → "-겠죠"** (이 어미 하나만. 예: "확인하시면 되겠어요" → "확인하시면 되겠죠")',
-      '  4) 늘어진 번역투는 풀어 써 ("~하는 개념으로 생각하시는 게 맞아요" → "~라고 생각하시면 돼요", "~해보셨으면 해요" → "~해보세요")',
-      '- **건드리지 마 — 르나가 실제로 쓰는 말이야.** "~거예요"와 "~것 같아요"는 그대로 둬. "마음에 드실 거예요"를 "드시겠죠"로, "기억에 남는 것 같아요"를 "남죠"로 바꾸지 마.',
-      '- 종결어미는 "-더라고요 / -했어요 / -좋았어요 / -거든요 / -거예요 / -것 같아요 / -고요"를 섞어 써. 같은 어미를 세 문장 연속으로 쓰지 마.',
-      '- **"와닿다"는 절대 쓰지 마.** 어떤 어미를 붙여도 안 돼. "이 부분이 크게 와닿으실 거예요" → "이 부분이 제일 반가우실 거예요"처럼 무엇이 어떻게 좋은지 구체적으로 써.',
-      '- 문장 끝 여운은 `~` 와 `!` 를 섞어 써. **글 한 편에 합쳐서 3~4번까지만.** 남발하면 가벼워 보여. 물결표는 부드럽게 풀 때, 느낌표는 확실히 추천하거나 감탄할 때.',
-      '- 문단마다 한두 번은 감탄이나 혼잣말을 섞어 생기를 줘. 예: "셀프바에 밥이 따로 준비되어 있다는 사실! 무료로 추가할 수 있어서 더 좋더라고요!"',
+      '[어투 v2 - 2026-10-01 르나 발행글 50편 + 초안↔발행 19쌍 실측]',
+      '- 르나는 말하듯이 써. 고치는 건 "어미"가 아니라 "글로 쓴 티"야. 아래는 르나가 초안을 받아 실제로 고친 방향이야.',
+      '- 종결어미는 "-더라고요 / -했어요 / -거든요 / -는데요 / -것 같아요 / -고요"를 섞고, **"-더라구요 / -구요"를 "-더라고요 / -고요"와 2:1로 섞어** (예: "그때뿐이더라구요", "넘 좋아하시더라구요!!"). 같은 어미를 세 문장 연속으로 쓰지 마.',
+      '- **"-거예요"는 글 한 편에 1~2번만.** "-이에요/-예요" 서술도 줄이고 "-했어요 / -더라구요 / -는데요"로 분산해. "-것 같아요"는 자연스럽게 써도 돼.',
+      '- **"-죠"로 서술을 끝내지 마.** "제일 아쉬웠죠" (X) → "아쉽더라구요" (O). "-죠?"는 독자에게 묻는 질문에서만.',
+      '- **독자에게 묻는 문장을 글 한 편에 2~3개 넣어.** 예: "전문성 장난아니죠?", "사진이랑 다른 경우가 있잖아요." 초안에는 물음표가 0개였고 르나 글에는 1만 자당 4개가 있어.',
+      '- 감탄·혼잣말은 짧게. **ㅠㅠ/ㅎㅎ는 1~2번, "!!"는 1번까지.** `~`와 `!`는 합쳐서 3~4번. 예: "서른 중반이 되어가면서 아니 증말 ㅠㅠ", "지금 받은 지 한 달쯤 되었는데요!"',
+      '- 강조 부사 "완전히/매우/상당히/굉장히" → "완전/진짜/너무/넘". 합쇼체 "~합니다/~됩니다/~입니다" → "~해요/~돼요". "-겠어요" → "-겠죠". 늘어진 번역투는 풀어 써.',
+      '- **분위기 잡는 문장과 광고 카피 같은 문장은 쓰지 마.** 르나가 전부 지웠어. 예: "거울 보는 시간이 이상하게 짧아지더라고요", "한 번 가보시면 왜 늘 손님이 많은지 바로 아실 거예요" (X)',
+      '- **마무리는 2문장 이내.** 추천 한 줄 + "기억해두세요" 정도. 상황 나열("회식 끝나고, 야근 끝나고, 새벽에…")을 반복하지 마. 재료가 끝나면 끝내. 분량을 채우려 늘리지 마.',
+      '- 소주제 제목은 문장이 아니라 **검색어 묶음**이야 (예: "줄기세포 유지기간", "메뉴 추천 가격", "웨이팅 꿀팁"). 제목에 넣은 키워드를 소주제 제목에 다시 써.',
+      '- **"와닿다"는 절대 쓰지 마.** 어떤 어미를 붙여도 안 돼. 무엇이 어떻게 좋은지 구체적으로 써.',
+      '- 유형별 소구 규칙([시술 후기 소구 규칙], [판매형 …] 등)이 아래 [프롬프트]의 템플릿 안에 있으면 그 규칙이 이 어투 규칙보다 우선이야 (시술 글은 ㅠㅠ·질문을 더 쓴다).',
 
       '[도입부 - 2026-09-22 확정 / 르나 블로그 실물 6편 분석]',
       '- **날짜를 쓰지 마.** "9월 17일 오후에 다녀온", "지난 주말에 방문한" 같은 표현 금지. 르나는 실제 글에서 방문 날짜를 한 번도 쓰지 않아. (영업시간·휴무일·이벤트 기간처럼 독자에게 필요한 날짜는 본문에 써도 돼)',
@@ -1650,6 +1716,8 @@
       '플랫폼: ' + (c.platform || ''),
       '유형(참고, 틀릴 수 있음): ' + ((c.types || []).join(', ') || '없음'),
       '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1200),
+      '업체 요청 키워드: ' + String(c.keywords || '없음').slice(0, 300),
+      '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 600),
       '받은 것(르나 기록): ' + String(c.received || '아직 없음').slice(0, 400),
       '',
       '[템플릿 목록]',
@@ -1666,6 +1734,7 @@
       '[채우는 법]',
       '- 고른 템플릿의 구조·문구·공통 규칙은 한 글자도 바꾸지 말고 빈칸만 채워.',
       '- 1️⃣ 제목, 2️⃣ 핵심 키워드(지역+업종 롱테일 1개 + 보조 2~4개), 3️⃣·4️⃣의 [지역]/[상황]/[고민], 소주제 제목의 [프로그램명]/[시술명]/[제품명]을 이 업체에 맞게 채워.',
+      '- 업체 요청 키워드가 있으면 그중 1개를 2️⃣ 메인 키워드로, 나머지는 보조 키워드와 해시태그 후보에 전부 넣어. 미션에 적힌 글자 수·키워드 횟수는 5️⃣에 한 줄로 옮겨.',
       '- 5️⃣ 참고할 관련 정보(판매형은 7️⃣)에는 제공 내역·예약 주의사항만 적고, 주소·전화번호·영업시간·주차·평점·메뉴 가격은 지금 확인할 수 없으니 각각 [확인 필요]로 남겨.',
       '- 경험 칸(검색형 "6️⃣ 경험", 판매형 "3️⃣ 나의 실사용 후기 경험담") 아래 안내 문구는 지우고 {{경험}} 한 줄만 둬. 예: "6️⃣ 경험 :\\n{{경험}}"',
       '- "7️⃣ 관련 링크" 줄은 넣지 마. 없는 정보를 지어내지 마.',
@@ -1910,6 +1979,11 @@ async function writeReview(id){
     var hit = banList.filter(function(w){ return t.indexOf(w) >= 0; });
     out.push({ ok: !hit.length, label: hit.length ? '금지어 ' + hit.length + '개 발견' : '금지어 없음', sub: hit.length ? hit.join(', ') + ' — 지워야 해요' : '체험단·협찬·대가 표현 없음 ✓' });
     var kws = mainKeywords(c);
+    // 업체 요청 키워드(📎 캠페인 조건)가 있으면 그것을 먼저 센다 (2026-10-01)
+    if(c && c.keywords){
+      var reqKw = String(c.keywords).split(/[,，]/).map(function(x){ return x.trim(); }).filter(Boolean);
+      if(reqKw.length) kws = reqKw.concat(kws.filter(function(k){ return reqKw.indexOf(k) < 0; })).slice(0, 6);
+    }
     if(kws.length){
       var main = kws[0];
       var inTitle = countOf(title, main), inBody = countOf(body, main);
@@ -1923,7 +1997,7 @@ async function writeReview(id){
     var hasPlace = /[📍☎️]/.test(t);
     if(derm) out.push({ ok: !hasPlace, label: derm && !hasPlace ? '병원 정보 없음 ✓' : '병원 위치·연락처가 들어 있어요', sub: '의료기관은 상호·주소·번호를 쓰면 안 돼요' });
     else out.push({ ok: hasPlace, warn: !hasPlace, label: hasPlace ? '위치·영업시간 줄 있음 ✓' : '위치 정보 줄이 없어요', sub: '📍 주소 ☎️ 번호 🕖 영업시간' });
-    out.push({ ok: true, info: true, label: '사진 15장 이상 + 지도 링크', sub: '업로드할 때 직접 확인 (대부분 플랫폼 공통 미션)' });
+    out.push({ ok: true, info: true, label: (c && c.mission) ? '📎 캠페인 미션' : '사진 15장 이상 + 지도 링크', sub: (c && c.mission) ? String(c.mission).replace(/\s*\n\s*/g, ' / ').slice(0, 200) : '업로드할 때 직접 확인 (대부분 플랫폼 공통 미션)' });
     return out;
   }
   function renderChecks(text, c){
@@ -2050,7 +2124,7 @@ async function writeReview(id){
   var FIELDS = [
     { k:'name', label:'업체명', type:'text', full:true },
     { k:'platform', label:'체험단 플랫폼', type:'text', list:'platList' },
-    { k:'types', label:'유형 (쉼표로 구분)', type:'types' },
+    { k:'template', label:'유형 (프롬프트 템플릿)', type:'tpl' },
     { k:'visit', label:'방문일', type:'visit' },
     { k:'due', label:'마감일', type:'date' },
     { k:'amount', label:'지원금 (원)', type:'number' },
@@ -2069,9 +2143,42 @@ async function writeReview(id){
     detailTimers = {}; detailFlush = {}; detailPending = {};
   }
 
+  /* 방문 시간: 30분 단위 드롭다운 (2026-10-01 르나 요청). 옛 값이 30분 단위가 아니면 fillDetail 이 그 값을 옵션으로 덧붙인다. */
+  function timeOptions(){
+    var h = '<option value="">시간 미정</option>';
+    for(var i = 0; i < 48; i++){ var t = pad(Math.floor(i / 2)) + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + t + '">' + t + '</option>'; }
+    return h;
+  }
+  /* 유형 = 프롬프트 템플릿. 고르면 template 키와 대표 유형(types[0])을 같이 저장한다. 비워두면 둘 다 비운다.
+     옛 캠페인은 template 이 없어서 types[0] 로 짝이 맞는 템플릿을 화면에만 보여준다(저장은 안 함). */
+  function tplMainType(key){ var t = templates[key]; return t && t.types && t.types.length ? t.types[0] : ''; }
+  function tplGuess(c){
+    if(c.template && templates[c.template]) return c.template;
+    var ty = (c.types || [])[0];
+    if(!ty) return '';
+    var keys = Object.keys(templates);
+    for(var i = 0; i < keys.length; i++){ var tt = templates[keys[i]]; if(tt && tt.types && tt.types[0] === ty) return keys[i]; }
+    return '';
+  }
+  function fillTplSelect(){
+    var el = document.getElementById('f_template');
+    if(!el || !templatesLoaded) return;
+    var list = sortedTemplates();
+    var sig = list.map(function(t){ return t.id + t.name; }).join('|');
+    if(el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    var h = '<option value="">선택 안 함</option>';
+    TPL_GROUPS.forEach(function(g){
+      var items = list.filter(function(t){ return t.group === g; });
+      if(items.length) h += '<optgroup label="' + esc(g) + '">' + items.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join('') + '</optgroup>';
+    });
+    el.innerHTML = h;
+  }
+
   function fieldInput(f){
     var id = 'f_' + f.k;
-    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><input id="f_visit_time" data-k="visit_time" type="time" style="max-width:120px"></div></div>';
+    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간 (30분 단위)</label><label class="chk-inline"><input type="checkbox" id="f_product_review" data-k="product_review"> 제품 리뷰 (방문 없음)</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><select id="f_visit_time" data-k="visit_time" style="max-width:130px">' + timeOptions() + '</select></div></div>';
+    if(f.type === 'tpl') return '<div class="f"><label for="f_template">' + esc(f.label) + '</label><select id="f_template" data-k="template"><option value="">선택 안 함</option></select></div>';
     var t = f.type === 'types' ? 'text' : f.type;
     return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + id + '">' + esc(f.label) + '</label>' +
       '<input id="' + id + '" data-k="' + f.k + '" type="' + t + '"' + (f.list ? ' list="' + f.list + '"' : '') + (t==='number' ? ' inputmode="numeric" min="0" step="1000"' : '') + ' autocomplete="off"></div>';
@@ -2094,6 +2201,13 @@ async function writeReview(id){
         '<div class="help">적어두면 초안에 실제 경험으로 그대로 반영돼요.</div></div>' +
       '</div>' +
 
+      '<div class="panel"><div class="panel-head"><h2>📎 캠페인 조건 <span style="font-weight:600">— 사이트에 적힌 것, 글에 꼭 반영</span></h2><span class="auto-tag">🤖 캠페인 링크에서 자동 입력 · 못 읽는 사이트는 직접 붙여넣기</span></div>' +
+        '<div class="f"><label for="f_offer">제공 서비스 · 물품</label><textarea id="f_offer" data-k="offer" rows="3" placeholder="예: 미니홀케이크 3만원대 or 2만원 금액권 / 체험 시간 13~19시 / 예약 문자만"></textarea></div>' +
+        '<div class="f" style="margin-top:10px"><label for="f_keywords">업체 요청 키워드 (쉼표로 · 제목·본문·해시태그에 들어가요)</label><input id="f_keywords" data-k="keywords" type="text" autocomplete="off" placeholder="예: 부천카페, 부천디저트, 신중동카페"></div>' +
+        '<div class="f" style="margin-top:10px"><label for="f_mission">체험단 미션 · 가이드 (사진 수, 영상, 지도, 글자 수, 키워드 횟수 등)</label><textarea id="f_mission" data-k="mission" rows="2" placeholder="예: 제목 키워드 1회 + 본문 3회 / 사진 15장 / 영상 1개 / 지도 필수 / 1,000자 이상"></textarea>' +
+        '<div class="help">키워드와 글자 수는 초안이 바로 지켜요. 사진·영상·지도는 발행할 때 챙기는 체크리스트로 초안 아래에 표시돼요. 사이트에 안 적혀 있으면 비워둬도 돼요.</div></div>' +
+      '</div>' +
+
       '<div class="panel"><div class="panel-head"><h2>📋 프롬프트 양식</h2><span class="auto-tag">🤖 자동 작성</span></div>' +
         '<div class="tpl-row"><span class="tpl-lab">템플릿</span><b id="dTplName"></b><span class="auto-tag">자동 선택</span><a href="#tpl" class="btn-link">템플릿 전체 보기</a><button type="button" class="btn-sm primary" id="dPromptNow">⚡ 지금 작성하기</button><button type="button" class="btn-sm" id="dPromptStop" hidden>멈추기</button></div>' +
         '<div class="auto-line" id="dPromptState"></div>' +
@@ -2114,6 +2228,7 @@ async function writeReview(id){
       '</div>' +
       '<div class="panel"><h2>✍️ 블로그 초안</h2>' +
         '<div class="editor-savebar"><span class="save-status" id="dDraftState"></span><span class="draft-btns"><button type="button" class="btn-sm primary" id="dDraftBtn">✍️ 초안 쓰기</button><button type="button" class="btn-sm" id="dDraftStop" hidden>멈추기</button><button type="button" class="btn-copy" id="dCopy">복사하기</button></span></div>' +
+        '<div class="auto-line" id="dMissionLine" hidden></div>' +
         '<textarea class="editor-textarea" id="f_draft_content" data-k="draft_content" style="min-height:40vh" placeholder="방문 완료로 바꾸거나 초안 쓰기를 누르면 받은 것·후기와 프롬프트를 바탕으로 바로 초안을 써요. 마음에 안 드는 부분은 여기서 바로 고치면 자동 저장돼요."></textarea>' +
         '<div class="sec-head"><span>✏️ 고치고 싶은 곳 알려주기</span><span class="save-status">요청한 부분만 다시 써요</span></div>' +
         '<textarea class="rev-ta" id="f_revise" placeholder="예) ③ 메뉴 설명이 길어요, 절반으로 줄여줘&#10;도입부가 딱딱해요. 좀 더 수다스럽게&#10;마무리에 주차 이야기 한 줄 넣어줘&#10;해시태그에 지역 키워드 더 넣어줘"></textarea>' +
@@ -2207,6 +2322,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(k === 'amount' || k === 'extra_pay') return v === '' ? null : Math.max(0, Math.round(Number(v)||0));
     if(k === 'types') return v.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean);
     if(k === 'visit_date' || k === 'visit_time' || k === 'due') return v || null;
+    if(el.type === 'checkbox') return !!el.checked;
     return v;
   }
 
@@ -2219,13 +2335,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     saveEl.textContent = '입력 중...';
     detailPending[k] = true;
     clearTimeout(detailTimers[k]);
-    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time') ? 0 : 700;
+    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time' || el.type === 'checkbox') ? 0 : 700;
     var id = detailId;
     var myTimer;
     var run = function(){
       delete detailFlush[k];
       var patch = {}; patch[k] = readField(el);
       if(k === 'status'){ patch.status_updated_at = Date.now(); }
+      if(k === 'product_review' && patch.product_review){ patch.visit_date = null; patch.visit_time = null; }   // 제품 리뷰는 방문이 없으니 방문일·시간을 비운다
+      if(k === 'template'){ patch.template = el.value || null; patch.types = el.value && tplMainType(el.value) ? [tplMainType(el.value)] : []; }
       if(k === 'draft_content'){ patch.draft_updated_at = Date.now(); }
       var pendingK = k;
       db.doc('campaigns/' + id).update(patch).then(function(){
@@ -2284,18 +2402,19 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월~목 오전 10시 자동화 때 캠페인 링크에서 채워져요'; }
     else { auto.className = 'auto-line'; auto.textContent = '예전에 등록한 체험단이에요'; }
 
-    var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
+    var visit = c.product_review ? '제품 리뷰 (방문 없음)' : (c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '');
     document.getElementById('dInfoView').innerHTML =
       kvRow('체험단 플랫폼', esc(c.platform)) +
-      kvRow('유형', esc((c.types || []).join(', '))) +
+      kvRow('유형', esc((templates[tplGuess(c)] && templates[tplGuess(c)].name) || (c.types || []).join(', '))) +
       kvRow('방문일', visit) +
       kvRow('마감일', c.due ? esc(fmtShort(c.due)) : '') +
       kvRow('지원금', c.amount ? esc(won(c.amount)) : '') +
       kvRow('추가 결제', c.extra_pay ? esc(won(c.extra_pay)) : '') +
       kvRow('예약 전화번호 (담당자용 · 본문 노출 금지)', c.reserve_phone ? '<a href="tel:' + esc(c.reserve_phone.replace(/[^0-9+]/g,'')) + '" style="color:inherit">' + esc(c.reserve_phone) + '</a>' : '') +
-      kvRow('동행인', esc(c.companion)) +
-      kvRow('제공 내역 · 체험 조건', esc(c.offer || (c.note || '').split(' / 초안 자동생성')[0].trim()).replace(/\n/g,'<br>'), true);
+      kvRow('동행인', esc(c.companion));
 
+    var ml = document.getElementById('dMissionLine');
+    if(ml){ ml.hidden = !c.mission; ml.textContent = c.mission ? '📎 발행 전 체크 — ' + String(c.mission).replace(/\s*\n\s*/g, ' / ') : ''; }
     var pState = document.getElementById('dPromptState');
     var pView = document.getElementById('dPromptView');
     var pBtn = document.getElementById('dPromptNow');
@@ -2326,6 +2445,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(db2){ db2.textContent = c.draft_content ? '↻ 다시 쓰기' : '✍️ 초안 쓰기'; db2.disabled = !sampleFn || sampleBlocked; db2.title = (!sampleFn || sampleBlocked) ? 'claude.ai에서 열어야 쓸 수 있어요' : ''; }
     if(!reviewing[c.id]){ revCount(c.naver_review); var rb = document.getElementById('dRevBtn'); if(rb){ rb.textContent = c.naver_review ? '↻ 다시 쓰기' : '✍️ 리뷰 쓰기'; rb.disabled = !sampleFn || sampleBlocked || !c.draft_content && !c.prompt; } }
     refreshDraftUI(c.id, drafting[c.id] ? '✍️ 쓰는 중… 본문 ' + (drafting[c.id].len || 0).toLocaleString() + '자' : null);
+    fillTplSelect();
     root.querySelectorAll('[data-k]').forEach(function(el){
       if(document.activeElement === el) return;
       if(el.dataset.k === 'draft_content' && drafting[detailId]) return;
@@ -2333,12 +2453,20 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       if(detailPending[el.dataset.k]) return;
       var k = el.dataset.k, v = c[k];
       if(k === 'types') v = (c.types || []).join(', ');
+      if(el.type === 'checkbox'){ el.checked = !!c[k]; return; }
+      if(k === 'template') v = tplGuess(c);
       if(v == null) v = '';
+      if(k === 'visit_time' && v && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
+        var ot = document.createElement('option'); ot.value = v; ot.textContent = v; el.appendChild(ot);
+      }
       if(k === 'status' && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
         var o = document.createElement('option'); o.value = v; o.textContent = v || '상태 미정'; el.insertBefore(o, el.firstChild);
       }
       if(String(el.value) !== String(v)) el.value = v;
     });
+    var vd = document.getElementById('f_visit_date'), vt = document.getElementById('f_visit_time');
+    if(vd) vd.disabled = !!c.product_review;
+    if(vt) vt.disabled = !!c.product_review;
     document.getElementById('dDday').innerHTML = ddayHtml(c);
     var cb = document.getElementById('dCalBtn'), cs = document.getElementById('dCalState');
     if(cb && cs && !calBusy[c.id]){
