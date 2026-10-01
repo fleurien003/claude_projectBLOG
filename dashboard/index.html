@@ -3605,21 +3605,39 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     try{ await db.doc('settings/celeb_topic').set({ updated_at: Date.now(), names: celebTopics }); }catch(e){}
   }
   /* news_mentions 한 번 조회 (retryable 실패는 1회 재시도). 연예인·카테고리·키워드 뉴스가 같이 쓴다. */
-  async function newsFetchRaw(q, sort){
+  async function mcpSearch(tool, q, sort){
     await initKeywordMcp();
     if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' };
     var args = { query: q, display: 15, sort: sort || 'date' }, res;
-    try{ res = await mcpNs.callTool(MCP_SERVER, 'news_mentions', args, { cache: { staleTime: 300000 } }); }
+    try{ res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
     catch(e){
       var f0 = mcpFix(e);
-      if(f0.retryable){ await sleep(Math.min(f0.after || 2500, 15000) + Math.random() * 800); res = await mcpNs.callTool(MCP_SERVER, 'news_mentions', args, { cache: { staleTime: 300000 } }); }
+      if(f0.retryable){ await sleep(Math.min(f0.after || 2500, 15000) + Math.random() * 800); res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
       else throw e;
     }
     var d = res && res.payload;
     if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+    return d;
+  }
+  async function blogFetchRaw(q, sort){
+    var d = await mcpSearch('blog_search', q, sort || 'sim');
+    return { total: d.total || 0, items: (d.items || []).slice(0, 15).map(function(n){
+      return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), blogger: n.blogger || '', postdate: String(n.postdate || ''), readable: !!n.readable };
+    }) };
+  }
+  async function newsFetchRaw(q, sort){
+    var d = await mcpSearch('news_mentions', q, sort);
     return { outlet_count: d.outlet_count || 0, items: (d.items || []).slice(0, 15).map(function(n){
       return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), outlet: n.outlet || '', pubDate: n.pubDate || '' };
     }) };
+  }
+  function blogListHtml(items){
+    return items.map(function(n){
+      var d = /^\d{8}$/.test(n.postdate) ? n.postdate.slice(0, 4) + '.' + n.postdate.slice(4, 6) + '.' + n.postdate.slice(6) : n.postdate;
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(n.title) + '</a>' : esc(n.title)) + '</b>' +
+        '<small>' + esc(n.blogger || '') + (d ? ' · ' + esc(d) : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span></div>';
+    }).join('');
   }
   function newsErr(e){ var f = mcpFix(e); return f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''); }
   /* 기사 목록 HTML. mkAttr(i) 는 🎯 버튼에 붙일 data 속성, busyPrefix 는 정리 중 표시용 키. */
@@ -3749,6 +3767,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     appliance: ['신제품 가전', '로봇청소기'], phone: ['스마트폰 출시', '아이폰 신제품'],
     travel_issue: ['국내여행 추천', '해외여행 항공권'], ott: ['넷플릭스 신작', '디즈니플러스 신작'], kurly_pick: ['컬리 신상', '컬리 추천']
   };
+  var newsMode = 'news';   // 카테고리 뉴스 칸의 탭: 'news' | 'blog'
+  function nkey(cat){ return newsMode === 'blog' ? cat + '|blog' : cat; }
   var newsHidden = {};   // catKey -> 뺀 기본 검색어 (DB: settings/news_queries)
   var newsByCat = {};   // catKey -> {q, sort, loading, error, items, outlet_count, fetched_at}
   function newsQueries(cat){
@@ -3762,12 +3782,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(!box || !NEWS_DEFAULT_Q[cat]) return;
     var ae = document.activeElement;
     if(ae && ae.id === 'newsInput') return;                         // 입력 중에는 다시 그리지 않는다
-    var st = newsByCat[cat] || { q: '', sort: 'date' };
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] || { q: '', sort: blog ? 'sim' : 'date' };
     var meta = CAT_META[cat];
-    var ttl = document.getElementById('newsTitle'); if(ttl) ttl.textContent = '📰 ' + String(meta.label).replace(/^\S+\s/, '') + ' 뉴스';
+    var ttl = document.getElementById('newsTitle'); if(ttl) ttl.textContent = '📰 ' + String(meta.label).replace(/^\S+\s/, '') + ' 뉴스·블로그';
     var ns = document.getElementById('newsState'); if(ns) ns.textContent = st.loading ? '조회 중…' : (st.fetched_at ? '"' + st.q + '" ' + (st.items || []).length + '건' : '');
     var gone = (newsHidden[cat] || []).length;
-    var h = '<div class="draft-btns" style="margin-bottom:8px">' + newsQueries(cat).map(function(x){
+    var h = '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm' + (blog ? '' : ' primary') + '" data-newstab="news">📰 뉴스</button><button type="button" class="btn-sm' + (blog ? ' primary' : '') + '" data-newstab="blog">📝 블로그</button></div>' +
+      '<div class="draft-btns" style="margin-bottom:8px">' + newsQueries(cat).map(function(x){
         var on = x.q === st.q ? ' primary' : '';
         if(x.pick) return '<button type="button" class="btn-sm' + on + '" data-newsq="' + esc(x.q) + '">🔑 ' + esc(x.q) + '</button>';
         return '<span class="btn-sm' + on + '" style="display:inline-flex;align-items:center;padding:0"><button type="button" data-newsq="' + esc(x.q) + '" style="border:none;background:none;font:inherit;color:inherit;cursor:pointer;padding:8px 4px 8px 12px">' + esc(x.q) + '</button>' +
@@ -3776,11 +3798,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '<form class="kw-form" id="newsForm" style="margin-bottom:8px"><input id="newsInput" type="search" placeholder="검색어 직접 입력" value="' + esc(st.q) + '" autocomplete="off" enterkeyhint="search">' +
         '<select id="newsSort" aria-label="정렬" style="font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:0 8px"><option value="date"' + (st.sort === 'date' ? ' selected' : '') + '>최신순</option><option value="sim"' + (st.sort === 'sim' ? ' selected' : '') + '>정확도순</option></select>' +
         '<button type="submit"' + (st.loading ? ' disabled' : '') + '>조회</button></form>';
-    if(st.loading) h += '<div class="save-status">뉴스 찾는 중…</div>';
+    if(st.loading) h += '<div class="save-status">' + (blog ? '블로그' : '뉴스') + ' 찾는 중…</div>';
     else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
     else if(st.fetched_at && !(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
-    else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요. 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.</div>';
-    else{
+    else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요.' + (blog ? ' 다른 블로거들이 이 주제를 어떻게 쓰는지 제목·요약으로 볼 수 있어요.' : ' 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.') + '</div>';
+    else if(blog){
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '정확도순') + ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + st.items.length + '건 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += blogListHtml(st.items);
+    }else{
       h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
       h += newsListHtml(st.items, function(i){ return 'data-newsmk="' + i + '"'; }, 'cat|' + cat + '|');
     }
@@ -3789,11 +3814,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   async function newsLookup(cat, q, sort){
     q = String(q || '').trim();
     if(!q){ toast('검색어를 넣어주세요.'); return; }
-    var st = newsByCat[cat] = { q: q, sort: sort || 'date', loading: true };
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] = { q: q, sort: sort || (blog ? 'sim' : 'date'), loading: true };
     renderNews();
     try{
-      var r = await newsFetchRaw(q, st.sort);
-      st.outlet_count = r.outlet_count; st.fetched_at = Date.now(); st.items = r.items;
+      var r = blog ? await blogFetchRaw(q, st.sort) : await newsFetchRaw(q, st.sort);
+      st.outlet_count = r.outlet_count; st.total = r.total; st.fetched_at = Date.now(); st.items = r.items;
     }catch(e){ st.error = newsErr(e); }
     st.loading = false;
     renderNews();
@@ -3806,8 +3832,16 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var del = e.target.closest('[data-newsq-del]');
     if(del){ (newsHidden[currentFilter] = newsHidden[currentFilter] || []).push(del.dataset.newsqDel); renderNews(); saveNewsHidden(); return; }
     if(e.target.closest('[data-newsq-reset]')){ delete newsHidden[currentFilter]; renderNews(); saveNewsHidden(); return; }
+    var tab = e.target.closest('[data-newstab]');
+    if(tab){
+      var nm = tab.dataset.newstab; if(nm === newsMode) return;
+      newsMode = nm;
+      var prev = newsByCat[nm === 'blog' ? currentFilter : currentFilter + '|blog'];
+      if(!newsByCat[nkey(currentFilter)] && prev && prev.q) newsLookup(currentFilter, prev.q, nm === 'blog' ? 'sim' : 'date'); else renderNews();
+      return;
+    }
     var q = e.target.closest('[data-newsq]');
-    if(q){ var cur = newsByCat[currentFilter] || {}; newsLookup(currentFilter, q.dataset.newsq, cur.sort); return; }
+    if(q){ var cur = newsByCat[nkey(currentFilter)] || {}; newsLookup(currentFilter, q.dataset.newsq, cur.sort); return; }
     var mk = e.target.closest('[data-newsmk]');
     if(mk && !mk.disabled){
       var cat = currentFilter, i = Number(mk.dataset.newsmk), st = newsByCat[cat];
@@ -3821,9 +3855,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   });
   document.getElementById('newsBox').addEventListener('change', function(e){
     if(e.target.id !== 'newsSort') return;
-    var st = newsByCat[currentFilter];
+    var st = newsByCat[nkey(currentFilter)];
     if(st && st.q) newsLookup(currentFilter, st.q, e.target.value);
-    else { newsByCat[currentFilter] = { q: '', sort: e.target.value }; }
+    else { newsByCat[nkey(currentFilter)] = { q: '', sort: e.target.value }; }
   });
   function renderCelebRank(){
     var el = document.getElementById('homeCelebs'), st = document.getElementById('celebState');
