@@ -850,13 +850,22 @@
       (refTab === 'lena' ? lenaExpHtml(item) : refInfoHtml(item, linkHtml));
   }
   var refTab = 'info';
+  function relatedNewsHtml(item){
+    var rn = item.related_news;
+    var src = item.source_desc ? '<div class="field"><span class="label">원본 뉴스</span>' + esc(item.source_title) + (item.source_outlet ? ' <small>(' + esc(item.source_outlet) + ')</small>' : '') + '<br><small>' + esc(item.source_desc) + '</small></div>' : '';
+    var list = Array.isArray(rn)
+      ? (rn.length ? rn.map(function(n){ return '<div style="margin-bottom:4px">' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a>' : esc(n.title)) + ' <small>' + esc(n.outlet || '') + '</small></div>'; }).join('') : '<small>관련 뉴스를 찾지 못했어요.</small>')
+      : '<small>초안을 쓸 때 자동으로 찾아요. 지금 찾아두려면 아래 버튼을 누르세요.</small>';
+    return src + '<div class="field"><span class="label">관련 뉴스 (최대 3건 · 초안 근거)</span>' + list +
+      '<div class="draft-btns" style="margin-top:6px"><button type="button" class="btn-sm" id="relNewsBtn">🔎 ' + (Array.isArray(rn) ? '관련 뉴스 다시 찾기' : '관련 뉴스 찾기') + '</button><span class="save-status" id="relNewsState"></span></div></div>';
+  }
   function refInfoHtml(item, linkHtml){
     return '' +
       '<div class="field"><span class="label">강조 포인트</span>' + esc(item.emphasis || '') + '</div>' +
       '<div class="field"><span class="label">반전 포인트</span>' + esc(item.twist || '') + '</div>' +
       '<div class="title-bait">💬 ' + esc(item.title_bait || '') + '</div>' +
       (item.kurly_action_note ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(item.kurly_action_note) + '</div>' : '') +
-      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>';
+      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>' + relatedNewsHtml(item);
   }
   /* 르나 경험 탭 — 내 정보 탭에 적어 둔 제품·여행 중 이 카드와 관련된 것 + 이 카드 전용 메모. 초안 프롬프트가 쓰는 것과 같은 기준이다. */
   function lenaExpHtml(item){
@@ -887,6 +896,14 @@
   document.getElementById('editorRef').addEventListener('click', async function(e){
     var tb = e.target.closest('[data-reftab]');
     if(tb){ refTab = tb.dataset.reftab; if(feedItem) renderHeadAndRef(feedItem); return; }
+    if(e.target.id === 'relNewsBtn'){
+      var rs = document.getElementById('relNewsState');
+      if(!db || !feedItem || !feedItem.id){ if(rs) rs.textContent = '지금은 쓸 수 없어요'; return; }
+      e.target.disabled = true; if(rs) rs.textContent = '찾는 중…';
+      try{ var got = await refreshRelatedNews(feedItem.id, db.doc('items/' + feedItem.id), feedItem, true); toast('관련 뉴스 ' + got.length + '건을 찾았어요 🔎'); }
+      catch(err){ if(rs) rs.textContent = newsErr(err); e.target.disabled = false; }
+      return;
+    }
     if(e.target.id === 'lenaNoteSave'){
       var ta = document.getElementById('lenaNote'), st = document.getElementById('lenaNoteState');
       if(!db || !feedItem || !feedItem.id){ if(st) st.textContent = '지금은 저장할 수 없어요'; return; }
@@ -1131,6 +1148,9 @@
       '제목 후보: ' + (it.title_bait || ''),
       it.trend_note ? '왜 지금인지: ' + it.trend_note : '',
       it.source_url ? '출처: ' + it.source_url : '',
+      it.source_desc ? '[원본 뉴스 — 이 카드의 출발점]\n제목: ' + it.source_title + '\n요약: ' + it.source_desc : '',
+      (it.related_news || []).length ? '[관련 뉴스 — 사실 확인용, 최대 3건]\n' + it.related_news.map(function(n, i){ return (i + 1) + '. ' + n.title + ' / ' + n.description; }).join('\n') : '',
+      (it.source_desc || (it.related_news || []).length) ? '- 위 뉴스의 제목·요약에 있는 사실만 근거로 써. 기사에 없는 숫자·가격·날짜·발언은 지어내지 마. 매체 이름, 보도 날짜, "기사에 따르면" 같은 표현은 본문에 쓰지 마. 뉴스끼리 내용이 다르면 겹치는 사실만 써.' : '',
       it.source_url2 ? '출처2: ' + it.source_url2 : '',
       it.hashtags ? '[해시태그 후보 — 검색량 확인된 키워드]\n' + it.hashtags : '',
       links ? '이미지 소스(참고용, 글에 넣지 말 것): ' + links : '',
@@ -1158,6 +1178,33 @@
       '', '[현재 글]', String(it.draft_content || '')].join('\n');
   }
 
+  /* 관련 뉴스 보강: 카드 주제(없으면 메인 키워드)로 네이버 뉴스를 정확도순 조회해 원본 기사와 겹치지 않는 최대 3건을 카드(related_news)에 저장한다.
+     조회는 토큰 0, 초안 프롬프트에 3건 분량(제목+요약)이 더해질 뿐이다. 이미 저장돼 있으면 다시 찾지 않는다(🔎 버튼으로만 다시). */
+  async function findRelatedNews(it){
+    var seen = {}, out = [];
+    if(it.source_url) seen[it.source_url] = 1;
+    if(it.source_title) seen['t' + String(it.source_title).replace(/\s+/g, '').slice(0, 14)] = 1;
+    var qs = [];
+    [it.topic, it.main_keyword].forEach(function(q){ q = String(q || '').trim(); if(q && !/^\(링크 확인 전\)/.test(q) && qs.indexOf(q) < 0) qs.push(q); });
+    for(var k = 0; k < qs.length && out.length < 3; k++){
+      var r = await newsFetchRaw(qs[k], 'sim');
+      r.items.forEach(function(n){
+        var tk = 't' + n.title.replace(/\s+/g, '').slice(0, 14);
+        if(out.length >= 3 || (n.link && seen[n.link]) || seen[tk]) return;
+        if(n.link) seen[n.link] = 1; seen[tk] = 1;
+        out.push({ title: n.title, description: String(n.description || '').slice(0, 200), link: n.link, outlet: n.outlet, pubDate: n.pubDate });
+      });
+    }
+    return out;
+  }
+  async function refreshRelatedNews(id, docRef, it, force){
+    if(!force && Array.isArray(it.related_news)) return it.related_news;
+    var list = await findRelatedNews(it);
+    await docRef.update({ related_news: list, related_news_at: Date.now() });
+    it.related_news = list;
+    return list;
+  }
+
   async function writeFeedDraft(id, docRef, revise){
     if(feedWriting) return;
     var it = feedItem;
@@ -1175,6 +1222,11 @@
     if(ta) ta.readOnly = true;
     if(st) st.textContent = revise ? '✏️ 고치는 중…' : '✍️ 쓰는 중… (30초~1분)';
     try{
+      if(!revise){
+        if(st) st.textContent = '🔎 관련 뉴스 찾는 중…';
+        try{ await refreshRelatedNews(id, docRef, it, false); }catch(e){ /* 뉴스를 못 찾아도 초안은 쓴다 */ }
+        if(st) st.textContent = '✍️ 쓰는 중… (30초~1분)';
+      }
       var res = await sampleFn(buildFeedPrompt(it, revise), {
         cache: false, signal: ctl.signal,
         onText: function(u){ if(ta) ta.value = u.text; if(st) st.textContent = (revise ? '✏️ 고치는 중… ' : '✍️ 쓰는 중… ') + (u.text || '').length.toLocaleString() + '자'; }
@@ -3617,7 +3669,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''),
         main_keyword: o.origin === 'celeb' ? o.query : (o.mainKw || ''), keyword_volume: o.origin === 'celeb' ? (Number(r.volume) || 0) : (Number(o.volume) || 0),
         trend_note: o.query + (o.origin === 'celeb' && r.volume ? ' 월 ' + Number(r.volume).toLocaleString() + '회' : '') + ' · 뉴스: ' + n.title,
-        source_url: n.link || '', status: 'pending', origin: o.origin, needs_read: false, created_at: Date.now()
+        source_url: n.link || '', source_title: n.title || '', source_desc: n.description || '', source_outlet: n.outlet || '', source_pub: n.pubDate || '',
+        status: 'pending', origin: o.origin, needs_read: false, created_at: Date.now()
       });
       toast('주제 카드를 만들었어요. ' + catName + ' 탭에서 확인하세요');
     }catch(err){
