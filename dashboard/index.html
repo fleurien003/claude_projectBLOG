@@ -2987,8 +2987,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                '<span class="rk">' + esc(r.keyword) + '</span>' +
                '<span class="rv">' + (r.under_10 ? '10회 미만' : comma(r.total)) + '</span>' +
                '<span class="rc">' + esc(r.comp || '') + '</span></button>' +
-               '<button type="button" class="btn-sm' + (rn ? ' primary' : '') + '" data-relnews="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📰 뉴스</button></div>' +
-               newsKwSlot(r.keyword, '');
+               '<button type="button" class="btn-sm' + (rn ? ' primary' : '') + '" data-relnews="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📰 뉴스</button>' +
+               '<button type="button" class="btn-sm' + (blogKw[r.keyword] && blogKw[r.keyword].open ? ' primary' : '') + '" data-kwblog="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📝 블로그</button></div>' +
+               newsKwSlot(r.keyword, '') + blogKwSlot(r.keyword, '');
       });
       rel += '</div>';
     }
