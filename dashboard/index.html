@@ -1237,13 +1237,37 @@
 
   /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 유형 · 지원금 · 마감일 · 상태 · 자동 입력 상태 + 정렬.
      탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. (월 선택은 10/1 요청으로 뺐다) ── */
-  var campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sort:'' };
+  var campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy:'', sortDir:'asc' };
+  /* 정렬은 노션처럼 "기준 속성 + 방향"이다 (2026-10-01 르나 요청). 고른 값은 이 브라우저에 기억해 둔다. */
+  try{ var sv = JSON.parse(localStorage.getItem('campSort') || 'null'); if(sv && sv.by) { campFilter.sortBy = sv.by; campFilter.sortDir = sv.dir === 'desc' ? 'desc' : 'asc'; } }catch(e){}
+  function saveSort(){ try{ localStorage.setItem('campSort', JSON.stringify({ by: campFilter.sortBy, dir: campFilter.sortDir })); }catch(e){} }
   var AUTO_OPTS = [['done','기본 정보 채워짐'],['pending','자동 입력 대기'],['failed','자동 입력 실패'],['noprompt','프롬프트 없음'],['nodraft','초안 없음'],['cal','캘린더 등록됨']];
   var AMOUNT_OPTS = [['none','지원금 없음(미기재)'],['has','지원금 있음']];
   var DUE_OPTS = [['none','마감일 없음'],['has','마감일 있음'],['over','마감 지남'],['week','7일 이내 마감']];
-  var SORT_OPTS = [['old','오래된 항목부터'],['new','새로운 항목부터']];
-  /* 정렬 기준 날짜 = 마감일, 없으면 방문일, 없으면 등록일 (근거 없는 판단값). 날짜가 전혀 없는 건 늘 맨 뒤. */
-  function sortDate(c){ return String(c.due || c.visit_date || c.created || '').slice(0, 10); }
+  var SORT_BY = [['due','마감일'],['visit','방문일'],['created','등록일'],['amount','지원금'],['name','업체명']];
+  var SORT_DIR = {
+    date:   [['asc','오래된 항목부터'],['desc','새로운 항목부터']],
+    amount: [['asc','적은 금액부터'],['desc','많은 금액부터']],
+    name:   [['asc','가나다순'],['desc','가나다 역순']]
+  };
+  function sortKind(by){ return by === 'amount' ? 'amount' : (by === 'name' ? 'name' : 'date'); }
+  /* 값이 비어 있는 건(마감일 없음, 지원금 미기재 등)은 방향과 상관없이 늘 맨 뒤 */
+  function sortVal(c, by){
+    if(by === 'due') return c.due ? String(c.due).slice(0, 10) : null;
+    if(by === 'visit') return c.visit_date ? String(c.visit_date).slice(0, 10) + (c.visit_time ? ' ' + c.visit_time : '') : null;
+    if(by === 'created') return c.created ? String(c.created).slice(0, 10) : null;
+    if(by === 'amount') return Number(c.amount) > 0 ? Number(c.amount) : null;
+    if(by === 'name') return displayName(c) || null;
+    return null;
+  }
+  function cmpSort(a, b, by, dir){
+    var va = sortVal(a, by), vb = sortVal(b, by);
+    if(va === null && vb === null) return 0;
+    if(va === null) return 1;
+    if(vb === null) return -1;
+    var r = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'ko');
+    return dir === 'desc' ? -r : r;
+  }
   function filterActive(){ return !!(campFilter.platform || campFilter.type || campFilter.amount || campFilter.due || campFilter.status || campFilter.auto); }
   function matchFilter(c){
     if(campFilter.platform && (c.platform || '') !== campFilter.platform) return false;
@@ -1288,7 +1312,7 @@
       var ia = statOrder.indexOf(a), ib = statOrder.indexOf(b);
       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b);
     });
-    var key = JSON.stringify([platList, typeList, stat, noAmt, noDue]);
+    var key = JSON.stringify([platList, typeList, stat, noAmt, noDue, campFilter.sortBy]);
     if(key !== lastFilterKey){
       lastFilterKey = key;
       function sel(f, label, opts, allLabel){
@@ -1302,7 +1326,8 @@
         sel('status', '상태', statList.map(function(v){ return [v, v + ' (' + stat[v] + ')']; }), '상태 전체') +
         sel('type', '유형', typeList.map(function(t){ return [t, t + ' (' + types[t] + ')']; }), '유형 전체') +
         sel('auto', '자동 입력', AUTO_OPTS, '자동 입력 전체') +
-        sel('sort', '정렬', SORT_OPTS, '정렬: 기본') +
+        sel('sortBy', '정렬 기준', SORT_BY, '정렬: 기본') +
+        (campFilter.sortBy ? '<select data-f="sortDir" aria-label="정렬 방향">' + SORT_DIR[sortKind(campFilter.sortBy)].map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') + '</select>' : '') +
         '<button type="button" class="btn-link" id="campFilterReset">필터 지우기</button>' +
         '<span class="save-status" id="campFilterCount"></span>';
     }
@@ -1312,11 +1337,13 @@
   document.getElementById('campFilters').addEventListener('change', function(e){
     var s = e.target.closest('select[data-f]'); if(!s) return;
     campFilter[s.dataset.f] = s.value;
+    if(s.dataset.f === 'sortBy') campFilter.sortDir = 'asc';
+    if(s.dataset.f === 'sortBy' || s.dataset.f === 'sortDir') saveSort();
     renderCamps();
   });
   document.getElementById('campFilters').addEventListener('click', function(e){
     if(!e.target.closest('#campFilterReset')) return;
-    campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sort: campFilter.sort };
+    campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy: campFilter.sortBy, sortDir: campFilter.sortDir };
     renderCamps();
   });
 
@@ -1405,15 +1432,8 @@
       }
       return (b.visit_date||b.due||'').localeCompare(a.visit_date||a.due||'');
     });
-    if(campFilter.sort){
-      var dir = campFilter.sort === 'old' ? 1 : -1;
-      list.sort(function(a,b){
-        var da = sortDate(a), db_ = sortDate(b);
-        if(!da && !db_) return 0;
-        if(!da) return 1;
-        if(!db_) return -1;
-        return da === db_ ? 0 : (da < db_ ? -dir : dir);
-      });
+    if(campFilter.sortBy){
+      list.sort(function(a,b){ return cmpSort(a, b, campFilter.sortBy, campFilter.sortDir); });
     }
 
     var el = document.getElementById('campList');
