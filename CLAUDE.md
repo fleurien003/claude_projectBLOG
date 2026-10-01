@@ -45,7 +45,6 @@
 배경·상세는 `docs/00_진행기록.md` "할 일 상세".
 
 **은아님이 하실 일**
-- [ ] **새 체험단 ② v3 루틴에 커넥터 3개(Gmail·Google Drive·Google Calendar) 붙이기** https://claude.ai/code/routines/trig_01GXKEzVebmZqpVF772VHGju · **옛 루틴 삭제** https://claude.ai/code/routines/trig_01MYfVdv1WsPYvRiLu2LciQu (월요일 10/5 10시 전에, 안 지우면 두 번 돈다)
 - [ ] **대시보드 첫 캘린더 등록 때 "Google Calendar 허용" 누르기** → 결과를 알려주시면 응답 필드(⚠️미확인)를 확정합니다
 - [ ] 리뷰노트·레뷰 캠페인 페이지 F12 → Network 에서 `campaign` 요청 주소 1개씩 캡처 (→ `/page` 핸들러 추가)
 - [ ] `MCP_SECRET` 교체 (여유 있을 때) · 네이버·카카오 키 재발급 (레포 public 전환 전에 반드시)
