@@ -55,6 +55,7 @@
     --shadow: 0 2px 12px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box;}
+  html, input, select, textarea{ accent-color:#ffb0b0; }   /* 달력·드롭다운 선택 강조색 (2026-10-01 르나 요청) */
   body{ background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",sans-serif; }
   .wrap{ max-width:760px; margin:0 auto; padding:20px 16px 56px; }
   header.top{ margin-bottom:18px; }
@@ -2083,7 +2084,7 @@ async function writeReview(id){
   var FIELDS = [
     { k:'name', label:'업체명', type:'text', full:true },
     { k:'platform', label:'체험단 플랫폼', type:'text', list:'platList' },
-    { k:'types', label:'유형 (쉼표로 구분)', type:'types' },
+    { k:'template', label:'유형 (프롬프트 템플릿)', type:'tpl' },
     { k:'visit', label:'방문일', type:'visit' },
     { k:'due', label:'마감일', type:'date' },
     { k:'amount', label:'지원금 (원)', type:'number' },
@@ -2102,9 +2103,42 @@ async function writeReview(id){
     detailTimers = {}; detailFlush = {}; detailPending = {};
   }
 
+  /* 방문 시간: 30분 단위 드롭다운 (2026-10-01 르나 요청). 옛 값이 30분 단위가 아니면 fillDetail 이 그 값을 옵션으로 덧붙인다. */
+  function timeOptions(){
+    var h = '<option value="">시간 미정</option>';
+    for(var i = 0; i < 48; i++){ var t = pad(Math.floor(i / 2)) + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + t + '">' + t + '</option>'; }
+    return h;
+  }
+  /* 유형 = 프롬프트 템플릿. 고르면 template 키와 대표 유형(types[0])을 같이 저장한다. 비워두면 둘 다 비운다.
+     옛 캠페인은 template 이 없어서 types[0] 로 짝이 맞는 템플릿을 화면에만 보여준다(저장은 안 함). */
+  function tplMainType(key){ var t = templates[key]; return t && t.types && t.types.length ? t.types[0] : ''; }
+  function tplGuess(c){
+    if(c.template && templates[c.template]) return c.template;
+    var ty = (c.types || [])[0];
+    if(!ty) return '';
+    var keys = Object.keys(templates);
+    for(var i = 0; i < keys.length; i++){ var tt = templates[keys[i]]; if(tt && tt.types && tt.types[0] === ty) return keys[i]; }
+    return '';
+  }
+  function fillTplSelect(){
+    var el = document.getElementById('f_template');
+    if(!el || !templatesLoaded) return;
+    var list = sortedTemplates();
+    var sig = list.map(function(t){ return t.id + t.name; }).join('|');
+    if(el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    var h = '<option value="">선택 안 함</option>';
+    TPL_GROUPS.forEach(function(g){
+      var items = list.filter(function(t){ return t.group === g; });
+      if(items.length) h += '<optgroup label="' + esc(g) + '">' + items.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join('') + '</optgroup>';
+    });
+    el.innerHTML = h;
+  }
+
   function fieldInput(f){
     var id = 'f_' + f.k;
-    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><input id="f_visit_time" data-k="visit_time" type="time" style="max-width:120px"></div></div>';
+    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간 (30분 단위)</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><select id="f_visit_time" data-k="visit_time" style="max-width:130px">' + timeOptions() + '</select></div></div>';
+    if(f.type === 'tpl') return '<div class="f"><label for="f_template">' + esc(f.label) + '</label><select id="f_template" data-k="template"><option value="">선택 안 함</option></select></div>';
     var t = f.type === 'types' ? 'text' : f.type;
     return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + id + '">' + esc(f.label) + '</label>' +
       '<input id="' + id + '" data-k="' + f.k + '" type="' + t + '"' + (f.list ? ' list="' + f.list + '"' : '') + (t==='number' ? ' inputmode="numeric" min="0" step="1000"' : '') + ' autocomplete="off"></div>';
@@ -2259,6 +2293,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       delete detailFlush[k];
       var patch = {}; patch[k] = readField(el);
       if(k === 'status'){ patch.status_updated_at = Date.now(); }
+      if(k === 'template'){ patch.template = el.value || null; patch.types = el.value && tplMainType(el.value) ? [tplMainType(el.value)] : []; }
       if(k === 'draft_content'){ patch.draft_updated_at = Date.now(); }
       var pendingK = k;
       db.doc('campaigns/' + id).update(patch).then(function(){
@@ -2320,7 +2355,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
     document.getElementById('dInfoView').innerHTML =
       kvRow('체험단 플랫폼', esc(c.platform)) +
-      kvRow('유형', esc((c.types || []).join(', '))) +
+      kvRow('유형', esc((templates[tplGuess(c)] && templates[tplGuess(c)].name) || (c.types || []).join(', '))) +
       kvRow('방문일', visit) +
       kvRow('마감일', c.due ? esc(fmtShort(c.due)) : '') +
       kvRow('지원금', c.amount ? esc(won(c.amount)) : '') +
@@ -2359,6 +2394,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(db2){ db2.textContent = c.draft_content ? '↻ 다시 쓰기' : '✍️ 초안 쓰기'; db2.disabled = !sampleFn || sampleBlocked; db2.title = (!sampleFn || sampleBlocked) ? 'claude.ai에서 열어야 쓸 수 있어요' : ''; }
     if(!reviewing[c.id]){ revCount(c.naver_review); var rb = document.getElementById('dRevBtn'); if(rb){ rb.textContent = c.naver_review ? '↻ 다시 쓰기' : '✍️ 리뷰 쓰기'; rb.disabled = !sampleFn || sampleBlocked || !c.draft_content && !c.prompt; } }
     refreshDraftUI(c.id, drafting[c.id] ? '✍️ 쓰는 중… 본문 ' + (drafting[c.id].len || 0).toLocaleString() + '자' : null);
+    fillTplSelect();
     root.querySelectorAll('[data-k]').forEach(function(el){
       if(document.activeElement === el) return;
       if(el.dataset.k === 'draft_content' && drafting[detailId]) return;
@@ -2366,7 +2402,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       if(detailPending[el.dataset.k]) return;
       var k = el.dataset.k, v = c[k];
       if(k === 'types') v = (c.types || []).join(', ');
+      if(k === 'template') v = tplGuess(c);
       if(v == null) v = '';
+      if(k === 'visit_time' && v && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
+        var ot = document.createElement('option'); ot.value = v; ot.textContent = v; el.appendChild(ot);
+      }
       if(k === 'status' && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
         var o = document.createElement('option'); o.value = v; o.textContent = v || '상태 미정'; el.insertBefore(o, el.firstChild);
       }
