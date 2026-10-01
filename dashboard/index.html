@@ -426,8 +426,9 @@
         <input id="addLink" type="url" placeholder="캠페인 링크 붙여넣기 (https://…)" required autocomplete="off">
         <button type="submit" class="btn-add">추가</button>
       </div>
-      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월·목 오후 2시 30분에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
+      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월~목 오전 10시에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
     </form>
+    <div class="tpl-row" id="campFilters" style="margin:10px 0 0"></div>
     <div class="tabs" id="campTabs"></div>
     <div id="campList"><div class="empty">불러오는 중...</div></div>
   </section>
@@ -1224,15 +1225,81 @@
 
   var TAB_DEFS = [
     { key:'urgent',  label:'🔥 마감' },
+    { key:'reserve', label:'📞 예약 필요' },
     { key:'active',  label:'진행 중' },
     { key:'booked',  label:'방문 예정' },
-    { key:'visited', label:'글쓰기 대기' },
     { key:'drafted', label:'초안 준비' },
     { key:'posted',  label:'포스팅 완료' },
-    { key:'closed',  label:'종료' }
+    { key:'closed',  label:'종료' },
+    { key:'all',     label:'전체' }
   ];
 
+  /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 월(등록/방문/마감 기준) · 유형 · 자동 입력 상태.
+     탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. ── */
+  var campFilter = { platform:'', monthBy:'created', month:'', type:'', auto:'' };
+  var MONTH_BY = { created:'등록', visit:'방문', due:'마감' };
+  var AUTO_OPTS = [['done','기본 정보 채워짐'],['pending','자동 입력 대기'],['failed','자동 입력 실패'],['noprompt','프롬프트 없음'],['nodraft','초안 없음'],['cal','캘린더 등록됨']];
+  function monthOf(c, by){ var d = by === 'visit' ? c.visit_date : (by === 'due' ? c.due : c.created); return d ? String(d).slice(0, 7) : ''; }
+  function filterActive(){ return !!(campFilter.platform || campFilter.month || campFilter.type || campFilter.auto); }
+  function matchFilter(c){
+    if(campFilter.platform && (c.platform || '') !== campFilter.platform) return false;
+    if(campFilter.month && monthOf(c, campFilter.monthBy) !== campFilter.month) return false;
+    if(campFilter.type && (c.types || []).indexOf(campFilter.type) < 0) return false;
+    if(campFilter.auto){
+      var a = c.auto_status || '';
+      if(campFilter.auto === 'noprompt') return !c.prompt;
+      if(campFilter.auto === 'nodraft') return !c.draft_content;
+      if(campFilter.auto === 'cal') return !!c.calendar_event_id;
+      return a === campFilter.auto;
+    }
+    return true;
+  }
+  var lastFilterKey = '';
+  function renderCampFilters(){
+    var el = document.getElementById('campFilters');
+    if(!el) return;
+    var plat = {}, months = {}, types = {};
+    camps.forEach(function(c){
+      if(c.platform) plat[c.platform] = (plat[c.platform] || 0) + 1;
+      var m = monthOf(c, campFilter.monthBy); if(m) months[m] = (months[m] || 0) + 1;
+      (c.types || []).forEach(function(t){ if(t) types[t] = (types[t] || 0) + 1; });
+    });
+    var platList = Object.keys(plat).sort(function(a, b){ return plat[b] - plat[a] || a.localeCompare(b); });
+    var monthList = Object.keys(months).sort().reverse();
+    var typeList = Object.keys(types).sort(function(a, b){ return types[b] - types[a] || a.localeCompare(b); });
+    var key = JSON.stringify([platList, monthList, typeList, campFilter.monthBy]);
+    if(key !== lastFilterKey){
+      lastFilterKey = key;
+      function sel(f, label, opts, allLabel){
+        return '<select data-f="' + f + '" aria-label="' + esc(label) + '"><option value="">' + esc(allLabel) + '</option>' +
+          opts.map(function(o){ return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') + '</select>';
+      }
+      el.innerHTML =
+        sel('platform', '플랫폼', platList.map(function(p){ return [p, p + ' (' + plat[p] + ')']; }), '플랫폼 전체') +
+        '<select data-f="monthBy" aria-label="월 기준">' + Object.keys(MONTH_BY).map(function(k){ return '<option value="' + k + '">' + MONTH_BY[k] + '월 기준</option>'; }).join('') + '</select>' +
+        sel('month', '월', monthList.map(function(m){ return [m, m.replace('-', '년 ') + '월 (' + months[m] + ')']; }), '모든 달') +
+        sel('type', '유형', typeList.map(function(t){ return [t, t + ' (' + types[t] + ')']; }), '유형 전체') +
+        sel('auto', '상태', AUTO_OPTS, '자동 입력 전체') +
+        '<button type="button" class="btn-link" id="campFilterReset">필터 지우기</button>' +
+        '<span class="save-status" id="campFilterCount"></span>';
+    }
+    el.querySelectorAll('select[data-f]').forEach(function(s){ var v = campFilter[s.dataset.f] || ''; if(String(s.value) !== String(v)) s.value = v; });
+    var rb = document.getElementById('campFilterReset'); if(rb) rb.hidden = !filterActive();
+  }
+  document.getElementById('campFilters').addEventListener('change', function(e){
+    var s = e.target.closest('select[data-f]'); if(!s) return;
+    campFilter[s.dataset.f] = s.value;
+    if(s.dataset.f === 'monthBy') campFilter.month = '';
+    renderCamps();
+  });
+  document.getElementById('campFilters').addEventListener('click', function(e){
+    if(!e.target.closest('#campFilterReset')) return;
+    campFilter = { platform:'', monthBy: campFilter.monthBy, month:'', type:'', auto:'' };
+    renderCamps();
+  });
+
   function matchStage(c, key){
+    if(key === 'all') return true;
     if(key === 'closed'){ var sg = stageOf(c); return sg === 'closed' || sg === 'dropped'; }
     if(key === 'active') return isActive(c);
     // 🔥 마감 : 오늘이 마감이거나 이미 지난 것만. 상태는 건드리지 않고 보기만 거른다.
@@ -1241,7 +1308,26 @@
       var n = daysUntil(c.due);
       return n !== null && n <= 0;
     }
+    // 📞 예약 필요 : 예약 전 단계인데 방문일이 아직 없는 것. 마감 가까운 순으로 보여준다 (2026-10-01).
+    if(key === 'reserve') return needsReserve(c);
+    // "글쓰기 대기" 탭 삭제 (2026-10-01 은아님 요청) — 방문 완료·네이버 리뷰 작성 단계도 "초안 준비" 탭에서 같이 본다.
+    if(key === 'drafted') return stageOf(c) === 'drafted' || stageOf(c) === 'visited';
     return stageOf(c) === key;
+  }
+  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date; }
+
+  /* 예약 문자 문구 — docs/03 2번 원문 그대로. 업체명은 지역 수식어를 뺀 핵심 상호명.
+     방문일은 은아님이 정하므로(자동화는 날짜를 제안하지 않는다) 비어 있으면 빈칸으로 둔다. */
+  function smsText(c){
+    var when = c.visit_date ? fmtShort(c.visit_date).replace(/\(.\)$/, '').replace('/', '월 ') + '일' + (c.visit_time ? ' ' + c.visit_time : '') : '○월 ○일 ○시';
+    return '안녕하세요. ' + (coreName(c.name) || '[업체명]') + ' 사장님 체험단 선정된 김은아라고 합니다. ' + when + '에 방문해도 될까요??';
+  }
+  function reserveActionsHtml(c){
+    var tel = String(c.reserve_phone || '').replace(/[^0-9+]/g, '');
+    var info = c.auto_status === 'pending' || !c.name ? '⏳ 기본 정보 아직 전' : (c.auto_status === 'failed' ? '⚠️ 링크 못 읽음 · 열어서 확인' : '');
+    return '<div class="c-actions" style="margin-top:8px"><span class="hint">' + esc(info) + '</span>' +
+      (tel ? '<a class="btn-sm" href="tel:' + esc(tel) + '" style="text-decoration:none">📞 ' + esc(c.reserve_phone) + '</a>' : '<span class="hint" style="flex:none">예약 번호 없음</span>') +
+      '<button type="button" class="btn-sm" data-sms="1">📱 문자 문구 복사</button></div>';
   }
 
   function renderCamps(){
@@ -1267,11 +1353,15 @@
     var todo = dueSoon.length + drafted.length;
     badge.hidden = !todo; badge.textContent = todo;
 
+    renderCampFilters();
     var q = campQuery.trim().toLowerCase();
     var searched = camps.filter(function(c){
+      if(!matchFilter(c)) return false;
       if(!q) return true;
       return ((c.name||'') + ' ' + (c.platform||'') + ' ' + (c.note||'') + ' ' + (c.received||'')).toLowerCase().indexOf(q) >= 0;
     });
+    var fc = document.getElementById('campFilterCount');
+    if(fc) fc.textContent = filterActive() || q ? searched.length + '건 (전체 ' + camps.length + ')' : '';
 
     document.getElementById('campTabs').innerHTML = TAB_DEFS.map(function(t){
       var n = searched.filter(function(c){ return matchStage(c, t.key); }).length;
@@ -1284,8 +1374,8 @@
       var pa = isActive(a), pb = isActive(b);
       if(pa !== pb) return pa ? -1 : 1;
       if(pa){
-        // 🔥 마감 탭에서는 가장 많이 지난 것부터. 다른 기준을 섞지 않는다.
-        if(campStage === 'urgent') return (a.due||BIG).localeCompare(b.due||BIG);
+        // 🔥 마감 탭에서는 가장 많이 지난 것부터, 📞 예약 필요 탭은 마감 가까운 순. 다른 기준을 섞지 않는다.
+        if(campStage === 'urgent' || campStage === 'reserve') return (a.due||BIG).localeCompare(b.due||BIG);
         var ka = stageOf(a) === 'visited' ? '0' : '1', kb = stageOf(b) === 'visited' ? '0' : '1';
         if(campStage === 'active' && ka !== kb) return ka < kb ? -1 : 1;
         var sa = isStale(a), sb = isStale(b);
@@ -1297,10 +1387,10 @@
 
     var el = document.getElementById('campList');
     if(!list.length){
-      el.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없어요.' : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
+      el.innerHTML = '<div class="empty">' + (q || filterActive() ? '조건에 맞는 체험단이 없어요.' + (filterActive() ? '<br>다른 탭을 누르거나 필터를 지워보세요.' : '') : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='reserve' ? '예약할 체험단이 없어요. 👏<br>방문일이 비어 있는 예약 전 체험단이 여기 모여요.' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
       return;
     }
-    var limit = (campStage === 'posted' || campStage === 'closed') && !showAllPosted && !q ? 30 : list.length;
+    var limit = (campStage === 'posted' || campStage === 'closed' || campStage === 'all') && !showAllPosted && !q && !filterActive() ? 30 : list.length;
     var html = list.slice(0, limit).map(campCardHtml).join('');
     if(list.length > limit) html += '<button type="button" class="btn-sm more" id="campMore">' + (list.length - limit) + '건 더 보기</button>';
     el.innerHTML = html;
@@ -1325,7 +1415,7 @@
     if(c.auto_status === 'pending' && !na.hint) na.hint = '🤖 자동 입력 대기 중';
     if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
-    if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>');
+    if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>' + (c.calendar_event_id ? ' 📅' : ''));
     if(c.due) meta.push('마감 <b>' + esc(fmtShort(c.due)) + '</b>');
     if(c.amount) meta.push('지원 <b>' + esc(won(c.amount)) + '</b>');
     if(c.extra_pay) meta.push('추가결제 <b>' + esc(won(c.extra_pay)) + '</b>');
@@ -1346,6 +1436,7 @@
             (na.btn ? '<button type="button" class="btn-sm good" ' + (na.btn.draft ? 'data-draft="1"' : 'data-to="' + esc(na.btn.to) + '"') + '>' + esc(na.btn.label) + '</button>' : '') +
             '<button type="button" class="btn-sm primary" data-open="1">' + (s === 'drafted' || s === 'visited' ? '✍️ 초안·상세' : '열기') + '</button>' +
           '</div>' : '') +
+        (campStage === 'reserve' && needsReserve(c) ? reserveActionsHtml(c) : '') +
       '</div>';
   }
 
@@ -1353,6 +1444,11 @@
     if(!db) return;
     try{
       await db.doc('campaigns/' + id).update({ status: status, status_updated_at: Date.now() });
+      if(STAGE_OF[status] === 'booked'){
+        var bc = camps.find(function(x){ return x.id === id; });
+        if(bc && !bc.visit_date){ toast('예약 완료! 열어서 방문일·시간을 넣으면 구글 캘린더에 바로 등록돼요 📅'); return; }
+        if(bc) setTimeout(function(){ syncCalendar(id, false); }, 300);
+      }
       if(status === '방문 완료'){
         var c = camps.find(function(x){ return x.id === id; });
         if(c && !c.draft_content) writeDraft(id);
@@ -1910,6 +2006,11 @@ async function writeReview(id){
     if(e.target.closest('#campMore')){ showAllPosted = true; renderCamps(); return; }
     if(e.target.closest('a')) return;
     var card = e.target.closest('.c-card'); if(!card) return;
+    if(e.target.closest('[data-sms]')){
+      var sc = camps.find(function(x){ return x.id === card.dataset.id; });
+      if(sc) copyString(smsText(sc));
+      return;
+    }
     var to = e.target.closest('[data-to]');
     if(to){ to.disabled = true; setCampStatus(card.dataset.id, to.dataset.to); return; }
     if(e.target.closest('[data-draft]')){ writeDraft(card.dataset.id); return; }
@@ -1940,7 +2041,7 @@ async function writeReview(id){
       input.value = ''; addForm.hidden = true;
       document.getElementById('campAdd').setAttribute('aria-expanded', 'false');
       campStage = 'active'; renderCamps();
-      toast('추가했어요! 다음 월·목 오후 2시 30분에 기본 정보와 프롬프트가 채워져요 🤖');
+      toast('추가했어요! 다음 월~목 오전 10시에 기본 정보와 프롬프트가 채워져요 🤖');
     }catch(err){
       toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
     }
@@ -1986,7 +2087,8 @@ async function writeReview(id){
     document.getElementById('campDetail').innerHTML =
       '<h1 class="d-title" id="dTitle"></h1>' +
       '<div class="d-status"><select id="f_status" data-k="status" aria-label="상태">' + statusOpts + '</select>' +
-        '<span id="dDday"></span><span class="save-status" id="dSave"></span></div>' +
+        '<span id="dDday"></span><span class="save-status" id="dSave"></span>' +
+        '<button type="button" class="btn-sm" id="dCalBtn" hidden>📅 캘린더 등록</button><span class="save-status" id="dCalState"></span></div>' +
 
       '<div class="panel" style="border-color:var(--accent)"><div class="panel-head"><h2>🎁 제공 내역 · 경험 <span style="font-weight:600">— 내가 쓰는 곳</span></h2></div>' +
         '<div class="f"><label for="f_received">6️⃣ 협찬으로 받은 것</label><textarea id="f_received" data-k="received" rows="2" placeholder="예: 우동정식, 돈까스 / 카카오라떼(ICE)·헤이즐넛 모카 크림라떼"></textarea>' +
@@ -2045,6 +2147,7 @@ document.getElementById('dRevBtn').onclick = async function(){
 };
 document.getElementById('f_naver_review').addEventListener('input', function(){ revCount(this.value); });
     document.getElementById('dDraftStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
+    document.getElementById('dCalBtn').onclick = function(){ syncCalendar(detailId, true); };
     document.getElementById('dPromptNow').onclick = function(){ writePromptNow(detailId); };
     document.getElementById('dPromptStop').onclick = function(){ var p = prompting[detailId]; if(p) p.ctl.abort(); };
     document.getElementById('dReviseBtn').onclick = function(){ reviseDraft(detailId); };
@@ -2132,6 +2235,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         if(detailTimers[pendingK] === myTimer) detailPending[pendingK] = false;
         saveEl.textContent = '저장됨 · ' + nowHM();
         if(k === 'status' && patch.status === '방문 완료'){ var cc = lastDetail || {}; if(!cc.draft_content) writeDraft(id); }
+        // 예약 완료 + 방문일·시간이 갖춰지면 그 자리에서 구글 캘린더에 등록한다 (토큰 0)
+        if(k === 'status' || k === 'visit_date' || k === 'visit_time'){
+          var merged = Object.assign({}, lastDetail || {}, patch, { id: id });
+          if(calNeeds(merged)) setTimeout(function(){ syncCalendar(id, false); }, 400);
+        }
       }).catch(function(){ if(detailTimers[pendingK] === myTimer) detailPending[pendingK] = false; saveEl.textContent = '저장 실패 — 다시 시도해주세요'; });
     };
     detailFlush[k] = run;
@@ -2176,7 +2284,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var auto = document.getElementById('dAutoState');
     if(c.auto_status === 'failed'){ auto.className = 'auto-line fail'; auto.textContent = '⚠️ 자동 입력 실패' + (c.auto_note ? ' — ' + c.auto_note : '') + ' · 다음 자동화 때 다시 시도해요'; }
     else if(c.auto_filled_at){ auto.className = 'auto-line'; auto.textContent = fmtStamp(c.auto_filled_at) + ' 자동 입력' + (c.auto_note ? ' · ' + c.auto_note : ''); }
-    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월·목 오후 2시 30분 자동화 때 캠페인 링크에서 채워져요'; }
+    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월~목 오전 10시 자동화 때 캠페인 링크에서 채워져요'; }
     else { auto.className = 'auto-line'; auto.textContent = '예전에 등록한 체험단이에요'; }
 
     var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
@@ -2208,7 +2316,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       pView.innerHTML = esc(pp.before) + '<span class="mine">' + esc(pp.mine) + '</span>' + esc(pp.after);
     } else {
       pState.className = 'auto-line wait';
-      pState.textContent = '⏳ 월·목 오후 2시 30분 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
+      pState.textContent = '⏳ 월~목 오전 10시 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
       var tpl = templates[c.template];
       pView.innerHTML = tpl
         ? '<span style="color:var(--sub)">' + esc(tpl.body) + '</span>'
@@ -2235,6 +2343,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       if(String(el.value) !== String(v)) el.value = v;
     });
     document.getElementById('dDday').innerHTML = ddayHtml(c);
+    var cb = document.getElementById('dCalBtn'), cs = document.getElementById('dCalState');
+    if(cb && cs && !calBusy[c.id]){
+      var need = calNeeds(c);
+      cb.hidden = !need;
+      cb.textContent = need === 'update' ? '📅 시간 변경 반영' : '📅 캘린더 등록';
+      cs.innerHTML = c.calendar_event_id
+        ? (need === 'update' ? '방문 시간이 바뀌었어요' : '📅 캘린더 등록됨' + (safeUrl(c.calendar_link) ? ' · <a href="' + esc(safeUrl(c.calendar_link)) + '" target="_blank" rel="noopener" style="color:inherit">열기</a>' : ''))
+        : (isBooked(c) && !c.visit_date ? '방문일·시간을 넣으면 캘린더에 자동 등록돼요' : '');
+    }
     var links = '';
     if(safeUrl(c.link)) links += '<a href="' + esc(safeUrl(c.link)) + '" target="_blank" rel="noopener">🔗 캠페인 페이지</a>';
     if(safeUrl(c.photo_folder)) links += '<a class="img-link" href="' + esc(safeUrl(c.photo_folder)) + '" target="_blank" rel="noopener">📁 사진 폴더</a>';
@@ -2521,6 +2638,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      페이지가 바깥에 닿는 통로는 "뷰어의 claude.ai 커넥터" 하나뿐이라 MCP 로 부른다.
      호출은 뷰어 자격증명으로 나가고, 이 코드는 토큰을 보지 않는다. */
   var MCP_SERVER = 'naver-blog-helper';
+  /* 구글 캘린더도 같은 통로(뷰어의 claude.ai 커넥터)로 부른다 (2026-10-01).
+     9/22에 "대시보드는 캘린더를 못 부른다"고 적었던 건 MCP 통로를 찾기 전 기록이라 틀렸다.
+     커넥터 표시 이름이 주소다. 캘린더는 이름이 같은 게 여러 개라 id 로만 지정한다 (docs/40). */
+  var CAL_SERVER = 'Google Calendar';
+  var CAL_ID = 'family13035616985683376181@group.calendar.google.com';
   var mcpNs = null;          // claude.use('mcp') 결과. null 이면 이 화면에서는 못 쓴다
   var mcpChecked = false;
   var kwBusy = false;
@@ -2683,10 +2805,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '다시 눌러보시면 허용 창이 떠요.']
   };
 
-  function mcpFix(e){
+  function mcpFix(e, server){
     var code = (e && e.code) || 'upstream_error';
     var f = MCP_FIX[code] || ['조회하지 못했어요.', (e && e.message) ? esc(e.message) : ''];
-    return { code: code, msg: f[0], fix: f[1], retryable: !!(e && e.retryable), after: (e && e.retryAfterMs) || 0 };
+    var other = server && server !== MCP_SERVER;
+    var sub = function(s){ return other ? String(s).split(MCP_SERVER).join(esc(server)).replace('중계 서버가', esc(server) + ' 커넥터가').replace('Render 무료 플랜이라 자고 있었을 수 있어요. ', '') : s; };
+    return { code: code, msg: sub(f[0]), fix: sub(f[1]), retryable: !!(e && e.retryable), after: (e && e.retryAfterMs) || 0 };
   }
 
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -2782,7 +2906,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       }else{
         servers.forEach(function(sv){
           var names = (sv.tools || []).map(function(t){ return t.name; });
-          lines.push((sv.server === MCP_SERVER ? '✅ ' : '• ') + '<b>' + esc(sv.server) + '</b>' +
+          lines.push((sv.server === MCP_SERVER || sv.server === CAL_SERVER ? '✅ ' : '• ') + '<b>' + esc(sv.server) + '</b>' +
             ' · 상태 ' + esc(sv.authStatus || '?') +
             ' · 도구 ' + names.length + '개' + (names.length ? ' (' + esc(names.join(', ')) + ')' : ''));
         });
@@ -2792,6 +2916,107 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       var f = mcpFix(e);
       state.innerHTML = '연결 확인 실패 — ' + esc(f.code) + '<br>' + esc((e && e.message) || '');
     }
+  }
+
+  /* ─────────────── 📅 구글 캘린더 등록 (토큰 0) ───────────────
+     상태가 '예약 완료'(또는 '전화예약완료')이고 방문일이 있으면 그 자리에서 뷰어의 구글 캘린더 커넥터로 등록한다.
+     규칙은 docs/40 그대로: 제목 "[체험단] 업체명", 1시간 30분, 2시간 전 팝업, 지난 방문은 등록하지 않음,
+     재등록 방지는 calendar_event_id. 방문 시간이 바뀌면 같은 일정을 고친다 (calendar_synced_key 비교).
+     방문 시간이 비어 있으면 종일 일정으로 넣는다 (근거 없는 판단값 — 시간을 넣으면 그때 1시간 30분으로 고쳐진다). */
+  var calBusy = {};
+  function isBooked(c){ return stageOf(c) === 'booked'; }
+  function calKey(c){ return (c.visit_date || '') + 'T' + (c.visit_time || ''); }
+  function calNeeds(c){
+    if(!c || !isBooked(c) || !c.visit_date) return '';
+    var n = daysUntil(c.visit_date);
+    if(n === null || n < 0) return '';
+    if(!c.calendar_event_id) return 'create';
+    if(c.calendar_synced_key && c.calendar_synced_key !== calKey(c)) return 'update';
+    return '';
+  }
+  function kstStamp(dateStr, hm, addMin){
+    var p = String(hm || '00:00').split(':');
+    var d = new Date(dateStr + 'T00:00:00');
+    d.setMinutes((+p[0]) * 60 + (+p[1]) + (addMin || 0));
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00+09:00';
+  }
+  function calTimes(c){
+    if(!c.visit_time) return { allDay: true, startTime: kstStamp(c.visit_date, '00:00', 0), endTime: kstStamp(c.visit_date, '00:00', 24 * 60) };
+    return { startTime: kstStamp(c.visit_date, c.visit_time, 0), endTime: kstStamp(c.visit_date, c.visit_time, 90) };
+  }
+  function calDescription(c){
+    // offer 가 없으면 note 의 앞부분(체험 조건 원문)만 쓴다. 🤖📁📅 같은 자동화 기록 줄부터는 자른다.
+    var raw = c.offer || (c.note || '').split(' / 초안 자동생성')[0] || '';
+    var kept = []; String(raw).split('\n').some(function(l){ if(/^\s*[🤖📁📅✍️⚡✏️⚠️✅]/.test(l)) return true; kept.push(l); return false; });
+    var offer = kept.join('\n').trim().slice(0, 600);
+    var lines = [];
+    if(c.platform) lines.push('플랫폼: ' + c.platform);
+    if(offer) lines.push('받는 것: ' + offer);
+    if(c.due) lines.push('업로드 마감: ' + c.due);
+    if(c.due && c.visit_date && c.due < c.visit_date) lines.push('⚠️ 마감일이 방문일보다 빨라요');
+    if(c.reserve_phone) lines.push('예약 연락처: ' + c.reserve_phone);
+    if(c.photo_folder) lines.push('사진 폴더: ' + c.photo_folder);
+    if(c.link) lines.push('캠페인: ' + c.link);
+    lines.push('대시보드: https://claude.ai/artifact/2rKeYVVx1FnvDvkDd21m4U#camp/' + encodeURIComponent(c.id));
+    return lines.join('\n');
+  }
+  function pickId(p){
+    if(!p) return '';
+    if(typeof p === 'string'){ try{ p = JSON.parse(p); }catch(e){ return ''; } }
+    if(typeof p !== 'object') return '';
+    var ev = p.event || p.data || p;
+    return String(ev.id || ev.eventId || ev.event_id || '');
+  }
+  function pickLink(p){
+    if(!p || typeof p !== 'object') return '';
+    var ev = p.event || p.data || p;
+    return safeUrl(ev.htmlLink || ev.html_link || ev.link || '');
+  }
+  async function syncCalendar(id, manual){
+    var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
+    if(!c || calBusy[id] || !db) return;
+    var need = calNeeds(c);
+    if(!need){
+      if(manual) toast(!isBooked(c) ? '상태를 "예약 완료"로 바꾸면 등록할 수 있어요' : (!c.visit_date ? '방문일을 먼저 넣어주세요' : (daysUntil(c.visit_date) < 0 ? '지난 방문은 등록하지 않아요' : '이미 캘린더에 있어요')));
+      return;
+    }
+    await initKeywordMcp();
+    if(!mcpNs){ if(manual) toast('claude.ai 에서 대시보드를 열어야 캘린더에 등록할 수 있어요.'); return; }
+    if(need === 'update' && !/^[A-Za-z0-9_@.\-]{5,}$/.test(String(c.calendar_event_id))){
+      toast('방문 시간이 바뀌었어요. 이 일정은 캘린더에서 직접 고쳐주세요.');
+      return;
+    }
+    calBusy[id] = true;
+    var st = detailId === id ? document.getElementById('dCalState') : null;
+    if(st) st.textContent = need === 'update' ? '📅 캘린더 일정 고치는 중…' : '📅 캘린더에 등록하는 중…';
+    try{
+      var times = calTimes(c);
+      var input = Object.assign({ calendarId: CAL_ID, summary: '[체험단] ' + (coreName(c.name) || displayName(c) || '체험단'),
+        description: calDescription(c), timeZone: 'Asia/Seoul',
+        overrideReminders: [{ method: 'popup', minutes: 120 }], useDefaultReminders: false }, times);
+      var patch = { calendar_synced_at: Date.now(), calendar_synced_key: calKey(c) };
+      var res;
+      if(need === 'create'){
+        res = await mcpNs.callTool(CAL_SERVER, 'create_event', input, { cache: false });
+        var eid = pickId(res && res.payload);
+        patch.calendar_event_id = eid || 'registered';   // id 를 못 읽어도 재등록은 막는다
+        var lk = pickLink(res && res.payload); if(lk) patch.calendar_link = lk;
+        patch.note = ((c.note || '') + '\n📅 캘린더 등록 (' + localToday() + (eid ? '' : ', 일정 id 미확인') + ')').trim();
+      }else{
+        res = await mcpNs.callTool(CAL_SERVER, 'update_event', { calendarId: CAL_ID, eventId: c.calendar_event_id, startTime: times.startTime, endTime: times.endTime, timeZone: 'Asia/Seoul', description: calDescription(c) }, { cache: false });
+        patch.note = ((c.note || '') + '\n📅 캘린더 일정 변경 (' + localToday() + ', ' + fmtShort(c.visit_date) + (c.visit_time ? ' ' + c.visit_time : '') + ')').trim();
+      }
+      await db.doc('campaigns/' + id).update(patch);
+      toast(need === 'create' ? '구글 캘린더 "체험단"에 등록했어요 📅' : '캘린더 일정을 고쳤어요 📅');
+    }catch(e){
+      var f = mcpFix(e, CAL_SERVER);
+      toast('캘린더 등록 실패 — ' + f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''));
+      if(st) st.textContent = '캘린더 등록 실패 (' + f.code + ')' + (e && e.message ? ' · ' + e.message : '');
+      calBusy[id] = false;
+      return;
+    }
+    calBusy[id] = false;
+    if(detailId === id && lastDetail) fillDetail(lastDetail);
   }
 
   document.getElementById('kwForm').addEventListener('submit', function(e){
