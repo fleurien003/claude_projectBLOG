@@ -255,6 +255,8 @@
   .f textarea{ resize:vertical; line-height:1.6; min-height:72px; }
   .f input:focus, .f textarea:focus, .d-status select:focus, .search:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
   .f .row{ display:flex; gap:6px; }
+  .f .chk-inline{ display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:12.5px; font-weight:700; color:var(--ink); }
+  .f .chk-inline input{ width:auto; margin:0; }
   .f .row input{ min-width:0; }
   .f .help{ font-size:11.5px; color:var(--sub); margin-top:4px; line-height:1.5; }
   .inline-link{ font-size:12px; color:var(--sub); text-decoration:none; border:1px solid var(--line); padding:5px 10px; border-radius:8px; }
@@ -1361,7 +1363,7 @@
     if(key === 'drafted') return stageOf(c) === 'drafted' || stageOf(c) === 'visited';
     return stageOf(c) === key;
   }
-  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date; }
+  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date && !c.product_review; }
 
   /* 예약 문자 문구 — docs/03 2번 원문 그대로. 업체명은 지역 수식어를 뺀 핵심 상호명.
      방문일은 은아님이 정하므로(자동화는 날짜를 제안하지 않는다) 비어 있으면 빈칸으로 둔다. */
@@ -1466,6 +1468,7 @@
     if(c.auto_status === 'pending' && !na.hint) na.hint = '🤖 자동 입력 대기 중';
     if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
+    if(c.product_review) meta.push('<b>제품 리뷰</b>');
     if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>' + (c.calendar_event_id ? ' 📅' : ''));
     if(c.due) meta.push('마감 <b>' + esc(fmtShort(c.due)) + '</b>');
     if(c.amount) meta.push('지원 <b>' + esc(won(c.amount)) + '</b>');
@@ -2157,7 +2160,7 @@ async function writeReview(id){
 
   function fieldInput(f){
     var id = 'f_' + f.k;
-    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간 (30분 단위)</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><select id="f_visit_time" data-k="visit_time" style="max-width:130px">' + timeOptions() + '</select></div></div>';
+    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간 (30분 단위)</label><label class="chk-inline"><input type="checkbox" id="f_product_review" data-k="product_review"> 제품 리뷰 (방문 없음)</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><select id="f_visit_time" data-k="visit_time" style="max-width:130px">' + timeOptions() + '</select></div></div>';
     if(f.type === 'tpl') return '<div class="f"><label for="f_template">' + esc(f.label) + '</label><select id="f_template" data-k="template"><option value="">선택 안 함</option></select></div>';
     var t = f.type === 'types' ? 'text' : f.type;
     return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + id + '">' + esc(f.label) + '</label>' +
@@ -2294,6 +2297,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(k === 'amount' || k === 'extra_pay') return v === '' ? null : Math.max(0, Math.round(Number(v)||0));
     if(k === 'types') return v.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean);
     if(k === 'visit_date' || k === 'visit_time' || k === 'due') return v || null;
+    if(el.type === 'checkbox') return !!el.checked;
     return v;
   }
 
@@ -2306,13 +2310,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     saveEl.textContent = '입력 중...';
     detailPending[k] = true;
     clearTimeout(detailTimers[k]);
-    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time') ? 0 : 700;
+    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time' || el.type === 'checkbox') ? 0 : 700;
     var id = detailId;
     var myTimer;
     var run = function(){
       delete detailFlush[k];
       var patch = {}; patch[k] = readField(el);
       if(k === 'status'){ patch.status_updated_at = Date.now(); }
+      if(k === 'product_review' && patch.product_review){ patch.visit_date = null; patch.visit_time = null; }   // 제품 리뷰는 방문이 없으니 방문일·시간을 비운다
       if(k === 'template'){ patch.template = el.value || null; patch.types = el.value && tplMainType(el.value) ? [tplMainType(el.value)] : []; }
       if(k === 'draft_content'){ patch.draft_updated_at = Date.now(); }
       var pendingK = k;
@@ -2372,7 +2377,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월~목 오전 10시 자동화 때 캠페인 링크에서 채워져요'; }
     else { auto.className = 'auto-line'; auto.textContent = '예전에 등록한 체험단이에요'; }
 
-    var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
+    var visit = c.product_review ? '제품 리뷰 (방문 없음)' : (c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '');
     document.getElementById('dInfoView').innerHTML =
       kvRow('체험단 플랫폼', esc(c.platform)) +
       kvRow('유형', esc((templates[tplGuess(c)] && templates[tplGuess(c)].name) || (c.types || []).join(', '))) +
@@ -2422,6 +2427,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       if(detailPending[el.dataset.k]) return;
       var k = el.dataset.k, v = c[k];
       if(k === 'types') v = (c.types || []).join(', ');
+      if(el.type === 'checkbox'){ el.checked = !!c[k]; return; }
       if(k === 'template') v = tplGuess(c);
       if(v == null) v = '';
       if(k === 'visit_time' && v && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
@@ -2432,6 +2438,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       }
       if(String(el.value) !== String(v)) el.value = v;
     });
+    var vd = document.getElementById('f_visit_date'), vt = document.getElementById('f_visit_time');
+    if(vd) vd.disabled = !!c.product_review;
+    if(vt) vt.disabled = !!c.product_review;
     document.getElementById('dDday').innerHTML = ddayHtml(c);
     var cb = document.getElementById('dCalBtn'), cs = document.getElementById('dCalState');
     if(cb && cs && !calBusy[c.id]){
