@@ -1718,6 +1718,7 @@
       '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1200),
       '업체 요청 키워드: ' + String(c.keywords || '없음').slice(0, 300),
       '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 600),
+      c.raw ? '캠페인 페이지 원문(르나가 붙여넣음 — 위 항목이 비어 있으면 여기서 찾아 쓴다):\n' + String(c.raw).slice(0, 4000) : '',
       '받은 것(르나 기록): ' + String(c.received || '아직 없음').slice(0, 400),
       '',
       '[템플릿 목록]',
@@ -1742,6 +1743,75 @@
       '[출력 형식]',
       '첫 줄에 "TEMPLATE: <템플릿키>" 만 쓰고, 그다음 줄부터 완성된 프롬프트 전문만 출력해. 설명·인사말은 쓰지 마.'
     ].join('\n');
+  }
+
+  /* ── 📎 캠페인 원문 정리: 르나가 붙여넣은 페이지 글자(raw)에서 기본 정보를 뽑아 채우고 프롬프트까지 쓴다 (2026-10-01 르나 요청).
+     플랫폼은 링크 호스트로 코드가 정하고(틀릴 일이 없다), 나머지는 Claude 가 JSON 으로 뽑는다. 원문에 없는 값은 비운다. ── */
+  var PLATFORM_HOST = { 'dinnerqueen.net':'디너의여왕', 'reviewnote.co.kr':'리뷰노트', 'revu.net':'레뷰', 'ringble.co.kr':'링블',
+    'xn--939au0g4vj8sq.net':'강남맛집', 'whogiup.com':'후기업', 'mrblog.net':'미스터블로그', 'reviewplace.co.kr':'리뷰플레이스' };
+  function platformOfUrl(u){ var h = hostOf(u); var k = Object.keys(PLATFORM_HOST).filter(function(x){ return h === x || h.slice(-x.length - 1) === '.' + x; })[0]; return k ? PLATFORM_HOST[k] : ''; }
+  var rawParsing = {};
+  function buildRawParsePrompt(c, raw){
+    var list = Object.keys(templates).map(function(k){ var t = templates[k] || {}; return '- ' + k + ' | ' + (t.name || '') + ' | ' + [].concat(t.types || []).join(','); }).join('\n');
+    return [
+      '너는 르나의 체험단 캠페인 페이지 원문을 정리하는 조수야. 아래 [원문]에서 값을 뽑아 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"name":"","platform":"","link":"","due":"","amount":null,"extra_pay":null,"offer":"","keywords":"","mission":"","template":""}',
+      '- name: "[지역] 업체명" (지역은 원문에 있을 때만, 예 "[경기 부천] 파티세리 라피네"). 캠페인 차수("43차")·플랫폼 이름은 뺀다.',
+      '- platform: 디너의여왕 / 리뷰노트 / 레뷰 / 링블 / 강남맛집 / 후기업 / 미스터블로그 중 하나. 원문에 없으면 "".',
+      '- link: 캠페인 페이지 URL (https://…). 없으면 "".',
+      '- due: 블로그 리뷰 마감일 YYYY-MM-DD ("리뷰 기간"·"포스팅 기간"·"리뷰 마감"의 끝 날짜). "26.10.13"처럼 두 자리 연도면 20을 붙여. 연도가 없으면 ' + localToday().slice(0, 4) + '. 없으면 "".',
+      '- amount: 지원금·제공 금액(원, 숫자만. "3만원대"는 30000). 없으면 null. extra_pay: 추가 결제 금액, 없으면 null.',
+      '- offer: 제공 내역 + 체험 가능 요일·시간·휴무 + 예약 방법·주의사항을 줄바꿈으로 3~6줄. 원문 문장을 줄여 쓴다.',
+      '- keywords: 업체가 요구한 키워드("키워드"·"필수 키워드"·"블로그 키워드")를 쉼표로. 없으면 "".',
+      '- mission: 키워드 횟수(제목 n회·본문 n회), 글자 수, 사진 수, 영상, 지도, 배너 같은 조건을 " / "로 이어 한 줄. 없으면 "".',
+      '- template: 아래 목록에서 업종에 맞는 키 하나. 음식점·카페·디저트 s_food, 피부·체형·네일·발 관리 s_esthetic, 병원·의원 s_derm, 음악·보컬 s_vocal, 운동 s_pt, 꽃집 s_flower, 자동차 s_car, 헤어 s_hair, 집으로 받는 제품은 p_*.',
+      '- 원문에 없는 값은 지어내지 말고 "" 또는 null.',
+      '', '[템플릿 목록]', list,
+      '', '[원문]', String(raw).slice(0, 6000)
+    ].join('\n');
+  }
+  async function parseRawCampaign(id){
+    var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
+    if(!c || rawParsing[id]) return;
+    var ta = detailId === id ? document.getElementById('f_raw') : null;
+    var raw = String((ta && ta.value) || c.raw || '').trim();
+    var st = detailId === id ? document.getElementById('dRawState') : null;
+    if(!raw){ toast('먼저 캠페인 페이지 글자를 붙여넣어 주세요.'); if(ta) ta.focus(); return; }
+    if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
+    if(!templatesLoaded){ toast('템플릿을 아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    rawParsing[id] = true;
+    var btn = document.getElementById('dRawParse'); if(btn) btn.disabled = true;
+    if(st){ st.className = 'auto-line wait'; st.textContent = '⚡ 원문에서 기본 정보 뽑는 중… (10~20초)'; }
+    try{
+      var res = await sampleFn(buildRawParsePrompt(c, raw), { cache: false });
+      var j = parseJsonLoose(res && res.text);
+      if(!j) throw new Error('parse');
+      var patch = { raw: raw };
+      var urlm = raw.match(/https?:\/\/[^\s"'<>)]+/);
+      var link = safeUrl(j.link) || (urlm ? safeUrl(urlm[0]) : '');
+      if(link) patch.link = link;
+      var plat = platformOfUrl(link) || String(j.platform || '').trim();
+      if(plat) patch.platform = plat;
+      if(j.name && String(j.name).trim()) patch.name = String(j.name).trim();
+      if(/^\d{4}-\d{2}-\d{2}$/.test(String(j.due || ''))) patch.due = j.due;
+      if(Number(j.amount) > 0) patch.amount = Math.round(Number(j.amount));
+      if(Number(j.extra_pay) > 0) patch.extra_pay = Math.round(Number(j.extra_pay));
+      ['offer', 'keywords', 'mission'].forEach(function(k){ if(j[k] && String(j[k]).trim()) patch[k] = String(j[k]).trim(); });
+      if(j.template && templates[j.template] && !c.template){ patch.template = j.template; var mt = tplMainType(j.template); if(mt) patch.types = [mt]; }
+      patch.note = ((c.note || '') + '\n📎 캠페인 원문에서 기본 정보 정리 (' + localToday() + ')').trim();
+      await db.doc('campaigns/' + id).update(patch);
+      var filled = Object.keys(patch).filter(function(k){ return k !== 'raw' && k !== 'note'; });
+      toast('기본 정보 ' + filled.length + '개 채웠어요 📎');
+      if(st){ st.className = 'auto-line'; st.textContent = '정리 완료 · ' + filled.join(', ') + (c.prompt ? '' : ' · 이어서 프롬프트를 써요'); }
+      if(!c.prompt){ setTimeout(function(){ writePromptNow(id, true); }, 300); }
+    }catch(e){
+      if(e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled' || e.code === 'capability_removed')) sampleBlocked = true;
+      toast('원문을 정리하지 못했어요. 잠시 후 다시 눌러주세요.');
+      if(st){ st.className = 'auto-line fail'; st.textContent = '정리 실패 — 다시 눌러주세요'; }
+    }finally{
+      delete rawParsing[id];
+      var b2 = document.getElementById('dRawParse'); if(b2) b2.disabled = false;
+    }
   }
 
   /* 성공하면 {template, prompt} 를 돌려준다. 초안 쓰기가 이 값을 그대로 이어받는다.
@@ -1979,7 +2049,7 @@ async function writeReview(id){
     var hit = banList.filter(function(w){ return t.indexOf(w) >= 0; });
     out.push({ ok: !hit.length, label: hit.length ? '금지어 ' + hit.length + '개 발견' : '금지어 없음', sub: hit.length ? hit.join(', ') + ' — 지워야 해요' : '체험단·협찬·대가 표현 없음 ✓' });
     var kws = mainKeywords(c);
-    // 업체 요청 키워드(📎 캠페인 조건)가 있으면 그것을 먼저 센다 (2026-10-01)
+    // 업체 요청 키워드(📎 캠페인 원문에서 정리)가 있으면 그것을 먼저 센다 (2026-10-01)
     if(c && c.keywords){
       var reqKw = String(c.keywords).split(/[,，]/).map(function(x){ return x.trim(); }).filter(Boolean);
       if(reqKw.length) kws = reqKw.concat(kws.filter(function(k){ return reqKw.indexOf(k) < 0; })).slice(0, 6);
@@ -2201,11 +2271,9 @@ async function writeReview(id){
         '<div class="help">적어두면 초안에 실제 경험으로 그대로 반영돼요.</div></div>' +
       '</div>' +
 
-      '<div class="panel"><div class="panel-head"><h2>📎 캠페인 조건 <span style="font-weight:600">— 사이트에 적힌 것, 글에 꼭 반영</span></h2><span class="auto-tag">🤖 캠페인 링크에서 자동 입력 · 못 읽는 사이트는 직접 붙여넣기</span></div>' +
-        '<div class="f"><label for="f_offer">제공 서비스 · 물품</label><textarea id="f_offer" data-k="offer" rows="3" placeholder="예: 미니홀케이크 3만원대 or 2만원 금액권 / 체험 시간 13~19시 / 예약 문자만"></textarea></div>' +
-        '<div class="f" style="margin-top:10px"><label for="f_keywords">업체 요청 키워드 (쉼표로 · 제목·본문·해시태그에 들어가요)</label><input id="f_keywords" data-k="keywords" type="text" autocomplete="off" placeholder="예: 부천카페, 부천디저트, 신중동카페"></div>' +
-        '<div class="f" style="margin-top:10px"><label for="f_mission">체험단 미션 · 가이드 (사진 수, 영상, 지도, 글자 수, 키워드 횟수 등)</label><textarea id="f_mission" data-k="mission" rows="2" placeholder="예: 제목 키워드 1회 + 본문 3회 / 사진 15장 / 영상 1개 / 지도 필수 / 1,000자 이상"></textarea>' +
-        '<div class="help">키워드와 글자 수는 초안이 바로 지켜요. 사진·영상·지도는 발행할 때 챙기는 체크리스트로 초안 아래에 표시돼요. 사이트에 안 적혀 있으면 비워둬도 돼요.</div></div>' +
+      '<div class="panel"><div class="panel-head"><h2>📎 캠페인 원문 <span style="font-weight:600">— 사이트 글자를 그대로 붙여넣는 곳</span></h2><button type="button" class="btn-sm primary" id="dRawParse">⚡ 기본 정보·프롬프트에 정리</button></div>' +
+        '<textarea id="f_raw" data-k="raw" rows="5" placeholder="링크, 업체명, 제공 내역, 키워드, 미션… 구분 없이 캠페인 페이지를 Ctrl+A → Ctrl+C 해서 그대로 붙여넣으세요"></textarea>' +
+        '<div class="auto-line" id="dRawState" style="margin-top:6px">붙여넣고 ⚡를 누르면 업체명·플랫폼·링크·마감·제공 내역·키워드·미션을 📌 기본 정보에 채우고 프롬프트까지 써요. 안 눌러도 월~목 10시 루틴이 같은 일을 해요.</div>' +
       '</div>' +
 
       '<div class="panel"><div class="panel-head"><h2>📋 프롬프트 양식</h2><span class="auto-tag">🤖 자동 작성</span></div>' +
@@ -2261,6 +2329,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('dDraftStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
     document.getElementById('dCalBtn').onclick = function(){ syncCalendar(detailId, true); };
     document.getElementById('dPromptNow').onclick = function(){ writePromptNow(detailId); };
+    document.getElementById('dRawParse').onclick = function(){ parseRawCampaign(detailId); };
     document.getElementById('dPromptStop').onclick = function(){ var p = prompting[detailId]; if(p) p.ctl.abort(); };
     document.getElementById('dReviseBtn').onclick = function(){ reviseDraft(detailId); };
     document.getElementById('dReviseStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
@@ -2411,7 +2480,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       kvRow('지원금', c.amount ? esc(won(c.amount)) : '') +
       kvRow('추가 결제', c.extra_pay ? esc(won(c.extra_pay)) : '') +
       kvRow('예약 전화번호 (담당자용 · 본문 노출 금지)', c.reserve_phone ? '<a href="tel:' + esc(c.reserve_phone.replace(/[^0-9+]/g,'')) + '" style="color:inherit">' + esc(c.reserve_phone) + '</a>' : '') +
-      kvRow('동행인', esc(c.companion));
+      kvRow('동행인', esc(c.companion)) +
+      kvRow('제공 내역 · 체험 조건', esc(c.offer || '').replace(/\n/g,'<br>'), true) +
+      kvRow('업체 요청 키워드 (제목·본문·해시태그에 꼭)', esc(c.keywords || ''), true) +
+      kvRow('체험단 미션 · 가이드', esc(c.mission || '').replace(/\n/g,'<br>'), true);
 
     var ml = document.getElementById('dMissionLine');
     if(ml){ ml.hidden = !c.mission; ml.textContent = c.mission ? '📎 발행 전 체크 — ' + String(c.mission).replace(/\s*\n\s*/g, ' / ') : ''; }
