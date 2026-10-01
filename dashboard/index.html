@@ -478,7 +478,7 @@
     <input id="feedPostedUrl" class="search" type="url" placeholder="블로그에 올린 뒤 글 주소를 붙여넣어 주세요 (https://blog.naver.com/…)" autocomplete="off">
     <div class="save-status" style="margin-top:6px">주소를 넣어두면 이 주제가 실제로 검색에 걸리는지 매주 확인해서 알려드려요.</div>
     <details class="ref-panel" open>
-      <summary>📋 참고 정보 (강조/반전 포인트, 이미지 소스, 링크)</summary>
+      <summary>📋 참고 정보 (강조/반전 포인트, 이미지 소스, 링크, 르나 경험)</summary>
       <div id="editorRef"></div>
     </details>
   </div>
@@ -828,13 +828,61 @@
     (item.image_links || []).forEach(function(im){
       if(im && im.url) linkHtml += '<a class="img-link" href="' + esc(im.url) + '" target="_blank" rel="noopener">' + esc(im.label || '🖼️ 이미지 소스') + '</a>';
     });
+    if(document.activeElement && document.activeElement.id === 'lenaNote') return;   // 메모 입력 중에는 다시 그리지 않는다
     refEl.innerHTML =
+      '<div class="draft-btns" style="margin:10px 0 0"><button type="button" class="btn-sm' + (refTab === 'info' ? ' primary' : '') + '" data-reftab="info">주제 정보</button>' +
+      '<button type="button" class="btn-sm' + (refTab === 'lena' ? ' primary' : '') + '" data-reftab="lena">👤 르나 경험</button></div>' +
+      (refTab === 'lena' ? lenaExpHtml(item) : refInfoHtml(item, linkHtml));
+  }
+  var refTab = 'info';
+  function refInfoHtml(item, linkHtml){
+    return '' +
       '<div class="field"><span class="label">강조 포인트</span>' + esc(item.emphasis || '') + '</div>' +
       '<div class="field"><span class="label">반전 포인트</span>' + esc(item.twist || '') + '</div>' +
       '<div class="title-bait">💬 ' + esc(item.title_bait || '') + '</div>' +
       (item.kurly_action_note ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(item.kurly_action_note) + '</div>' : '') +
       '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>';
   }
+  /* 르나 경험 탭 — 내 정보 탭에 적어 둔 제품·여행 중 이 카드와 관련된 것 + 이 카드 전용 메모. 초안 프롬프트가 쓰는 것과 같은 기준이다. */
+  function lenaExpHtml(item){
+    var isTravel = /^travel/.test(item.category_key || '');
+    var hay = [item.topic, item.emphasis, item.twist, item.title_bait, item.main_keyword].join(' ');
+    var gear = isTravel ? [] : gearList.filter(function(g){ return String(g.name || '').trim(); });
+    var trips = tripList.filter(function(t){
+      var pl = String(t.place || '').trim();
+      return pl && (isTravel || hay.indexOf(pl) >= 0);
+    }).slice(0, 10);
+    var rows = [];
+    gear.forEach(function(g){
+      rows.push('<div class="field"><span class="label">쓰는 제품</span>' + esc([g.cat, g.name].filter(Boolean).join(': ')) +
+        (g.since ? ' (' + esc(clip(g.since, 30)) + ')' : '') + (g.note ? '<br><small>' + esc(clip(g.note, 300)) + '</small>' : '') + '</div>');
+    });
+    trips.forEach(function(t){
+      var head = [t.when, t.days, t.with].map(function(x){ return clip(x, 30); }).filter(Boolean).join(' · ');
+      rows.push('<div class="field"><span class="label">다녀온 여행</span><b>' + esc(clip(t.place, 30)) + '</b>' + (head ? ' · ' + esc(head) : '') +
+        (t.stay ? '<br><small>숙소·교통: ' + esc(clip(t.stay, 200)) + '</small>' : '') +
+        (t.spots ? '<br><small>가본 곳·먹은 것: ' + esc(clip(t.spots, 400)) + '</small>' : '') +
+        (t.tip ? '<br><small>팁·아쉬움·비용: ' + esc(clip(t.tip, 300)) + '</small>' : '') + '</div>');
+    });
+    return (rows.length ? rows.join('') : '<div class="save-status" style="margin-top:10px">이 카드와 관련해 내 정보 탭에 적어 둔 제품·여행이 없어요.</div>') +
+      '<div class="field"><span class="label">이 카드 메모 (내가 직접 겪은 것, 초안에 반영돼요)</span>' +
+      '<textarea class="rev-ta" id="lenaNote" placeholder="예) 내 아이폰16 배터리는 하루 반 가요&#10;괌은 2019년에 다녀왔고 호텔은 ○○였어요">' + esc(item.lena_note || '') + '</textarea>' +
+      '<div class="draft-btns" style="margin-top:6px"><button type="button" class="btn-sm primary" id="lenaNoteSave">저장</button><span class="save-status" id="lenaNoteState"></span></div></div>';
+  }
+  document.getElementById('editorRef').addEventListener('click', async function(e){
+    var tb = e.target.closest('[data-reftab]');
+    if(tb){ refTab = tb.dataset.reftab; if(feedItem) renderHeadAndRef(feedItem); return; }
+    if(e.target.id === 'lenaNoteSave'){
+      var ta = document.getElementById('lenaNote'), st = document.getElementById('lenaNoteState');
+      if(!db || !feedItem || !feedItem.id){ if(st) st.textContent = '지금은 저장할 수 없어요'; return; }
+      try{
+        await db.doc('items/' + feedItem.id).update({ lena_note: ta.value });
+        feedItem.lena_note = ta.value;
+        if(st) st.textContent = '저장됨';
+        toast('르나 경험 메모를 저장했어요');
+      }catch(err){ if(st) st.textContent = '저장하지 못했어요. 다시 시도해주세요.'; }
+    }
+  });
 
   async function copyText(ta){
     ta.select();
@@ -3120,7 +3168,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       var p = String(t.place || '').trim();
       return p && (isTravel || hay.indexOf(p) >= 0);
     }).slice(0, 10);
-    if(!gear.length && !trips.length) return '';
+    var memo = String(it.lena_note || '').trim();
+    if(!gear.length && !trips.length && !memo) return '';
     var out = ['[내 정보 — 르나가 직접 적어둔 기록. 이 블록이 있으면 위 [1인칭 경험으로]의 "직접 보고 먹고 다녀온 것처럼"보다 이 블록이 우선이야]'];
     if(gear.length){
       out.push('[르나가 지금 쓰는 제품]');
@@ -3138,6 +3187,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
           (t.tip ? ' | 팁·아쉬움·비용: ' + clip(t.tip, 300) : ''));
       });
     }
+    if(memo) out.push('[이 카드에 대해 르나가 직접 적은 메모 — 적힌 범위 안에서만 1인칭으로 써도 돼]\n' + clip(memo, 1200));
     out.push('[이 블록 쓰는 법]');
     out.push('- 신제품·신상품·새로 나온 제품 글이면 "비교·정리형"으로 써. 르나는 그 신제품을 써보지 않았어. "써봤더니", "사용해보니", "직접 들어봤더니"처럼 써본 것처럼 말하지 마.');
     out.push('- 대신 [주제 정보]의 스펙·가격과 위 "지금 쓰는 제품"을 나란히 놓고 "저는 ~를 쓰고 있는데 ~는 이게 달라요" 식으로 비교해. 지금 쓰는 제품 쪽 경험은 적어둔 내용 안에서 1인칭으로 써도 돼.');
