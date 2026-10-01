@@ -369,6 +369,7 @@
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
+    <div class="draft-btns" style="margin:0 0 8px"><button type="button" class="btn-sm" id="detectBtn">📮 발행 확인</button><span class="save-status" id="detectState">내 블로그 최근 글과 맞춰서 발행한 글을 자동으로 기록해요</span></div>
     <div class="sec-list" id="homeList"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">카테고리별</span></div>
     <div class="chk-list" id="homeKw"></div>
@@ -2360,7 +2361,7 @@ async function writeReview(id){
         '<textarea class="rev-ta" id="f_revise" placeholder="예) ③ 메뉴 설명이 길어요, 절반으로 줄여줘&#10;도입부가 딱딱해요. 좀 더 수다스럽게&#10;마무리에 주차 이야기 한 줄 넣어줘&#10;해시태그에 지역 키워드 더 넣어줘"></textarea>' +
         '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="dReviseBtn">✏️ 수정 반영</button><button type="button" class="btn-sm" id="dReviseStop" hidden>멈추기</button><span class="save-status" id="dReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>' +
         '<div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="dPostState"></span></div>' +
-        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (자동 감지는 아직 없어요)" autocomplete="off">' +
+        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (비워두면 홈의 📮 발행 확인이 제목으로 찾아 채워요)" autocomplete="off">' +
         '<div class="sec-head"><span>업로드 전 점검</span><span class="save-status">플랫폼 미션·금지어 자동 확인</span></div><div class="chk-list" id="dCheck"></div>' +
         '<div class="sec-head"><span>소주제별 복사</span><span class="save-status">누르면 그 부분만 복사돼요</span></div><div class="sec-list" id="dSections"></div>' +
       '</div>' +
@@ -2711,6 +2712,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(!todoEl) return;
     renderChannels(); renderCelebRank();
     if(!campLoaded || !itemsLoaded){ todoEl.innerHTML = '<div class="empty">불러오는 중...</div>'; return; }
+    if(!detectStarted){ detectStarted = true; setTimeout(function(){ detectPublished(false); }, 1500); }
 
     // 오늘 써야 할 글 = 컨펌했는데 초안 없는 홈피드 + 방문 완료인데 초안 없는 체험단
     var feedToWrite = allItems.filter(function(i){ return i.status === 'confirmed' && !i.draft_content; });
@@ -3982,6 +3984,85 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var d = e.target.closest('[data-celeb-del]'); if(!d || !db) return;
     try{ await db.doc('celebs/' + d.dataset.celebDel).delete(); }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
   });
+
+
+  /* ── 📮 발행 자동 감지 (2026-10-01, 은아님 요청) ──
+     중계 서버 blog_feed(내 블로그 RSS 최근 글, 토큰 0)를 받아, 초안은 있는데 발행 기록이 없는 홈피드 카드·체험단과
+     초안 첫 줄(제목)을 비교해 맞으면 posted_url·발행 시각을 채우고 발행으로 기록한다.
+     맞는 기준은 근거 없이 정한 값이다: 공백·기호를 뺀 제목이 같거나(1.0), 한쪽이 다른 쪽을 포함하고 짧은 쪽이 8자 이상(0.9),
+     아니면 2글자 조각 겹침(Dice)이 0.8 이상. 두 번째 후보와 점수 차가 0.05 미만이면 애매하다고 보고 건드리지 않는다.
+     한 글은 한 카드에만 붙는다. 페이지를 열면 한 번 자동으로 돌고, 홈의 📮 발행 확인으로 다시 돌릴 수 있다. */
+  var detectStarted = false, detectBusy = false;
+  function normTitle(t){ return String(t || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, ''); }
+  function titleOf(draft){
+    var lines = String(draft || '').split('\n');
+    for(var i = 0; i < lines.length; i++){ var l = lines[i].trim(); if(l) return l.replace(/^#+\s*/, ''); }
+    return '';
+  }
+  function titleScore(a, b){
+    a = normTitle(a); b = normTitle(b);
+    if(!a || !b) return 0;
+    if(a === b) return 1;
+    var sh = a.length <= b.length ? a : b, lg = sh === a ? b : a;
+    if(sh.length >= 8 && lg.indexOf(sh) >= 0) return 0.9;
+    function bg(x){ var m = {}, n = 0; for(var i = 0; i < x.length - 1; i++){ var k = x.slice(i, i + 2); m[k] = (m[k] || 0) + 1; n++; } return { m: m, n: n }; }
+    var A = bg(a), B = bg(b); if(!A.n || !B.n) return 0;
+    var inter = 0; Object.keys(A.m).forEach(function(k){ if(B.m[k]) inter += Math.min(A.m[k], B.m[k]); });
+    return 2 * inter / (A.n + B.n);
+  }
+  async function detectPublished(manual){
+    if(detectBusy) return;
+    var st = document.getElementById('detectState'), btn = document.getElementById('detectBtn');
+    var say = function(t){ if(st) st.textContent = t; };
+    if(!db || !campLoaded || !itemsLoaded){ if(manual) toast('아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    var cands = [];
+    allItems.forEach(function(i){ if(i.draft_content && !i.posted_url && i.status !== 'posted') cands.push({ kind: 'item', id: i.id, title: titleOf(i.draft_content), ref: i }); });
+    camps.forEach(function(c){ var sg = stageOf(c); if(c.draft_content && !c.posted_url && sg !== 'posted' && sg !== 'dropped' && sg !== 'closed') cands.push({ kind: 'camp', id: c.id, title: titleOf(c.draft_content), ref: c }); });
+    cands = cands.filter(function(c){ return c.title; });
+    if(!cands.length){ say(manual ? '발행 기록이 필요한 초안이 없어요' : st && st.textContent); return; }
+    detectBusy = true; if(btn) btn.disabled = true; say('내 블로그 최근 글을 확인하는 중…');
+    try{
+      await initKeywordMcp();
+      if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 확인할 수 있어요.' };
+      var res = await mcpNs.callTool(MCP_SERVER, 'blog_feed', { limit: 50 }, { cache: { staleTime: 300000 } });
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      var posts = (d.items || []).filter(function(x){ return x && x.title && safeUrl(x.link); });
+      var pairs = [];
+      cands.forEach(function(c){
+        var sc = posts.map(function(p, j){ return { j: j, s: titleScore(c.title, p.title) }; }).sort(function(a, b){ return b.s - a.s; });
+        var best = sc[0], second = sc[1];
+        if(best && best.s >= 0.8){
+          if(second && best.s - second.s < 0.05) pairs.push({ c: c, amb: true });
+          else pairs.push({ c: c, j: best.j, s: best.s });
+        }
+      });
+      var used = {}, matched = 0, amb = 0;
+      pairs.filter(function(x){ return !x.amb; }).sort(function(a, b){ return b.s - a.s; }).forEach(function(x){ if(!used[x.j]) used[x.j] = x; });
+      var writes = [];
+      Object.keys(used).forEach(function(j){
+        var x = used[j], p = posts[j], c = x.c, link = safeUrl(p.link);
+        var ts = Number(p.ts) || (p.published ? Date.parse(p.published) : 0) || Date.now();
+        if(c.kind === 'item'){
+          writes.push(db.doc('items/' + c.id).update({ posted_url: link, posted_at: ts, status: 'posted', status_updated_at: Date.now(), posted_auto: true }));
+        }else{
+          writes.push(db.doc('campaigns/' + c.id).update({ posted_url: link, posted_at: ts, status: '블로그 포스팅 완료', status_updated_at: Date.now(), blog_done: true,
+            note: ((c.ref.note || '') + '\n📮 발행 자동 감지 (' + localToday() + ', 제목 일치 ' + Math.round(x.s * 100) + '%)').trim() }));
+        }
+      });
+      amb = pairs.filter(function(x){ return x.amb; }).length;
+      await Promise.all(writes); matched = writes.length;
+      var t = matched ? matched + '건을 발행으로 기록했어요 📮' : '새로 발행된 글은 없어요';
+      if(amb) t += ' · 애매한 ' + amb + '건은 직접 확인해주세요';
+      say(t + ' · ' + nowHM() + ' 확인');
+      if(matched || manual) toast(t);
+    }catch(e){
+      say(newsErr(e));
+      if(manual) toast('발행을 확인하지 못했어요. ' + newsErr(e));
+    }
+    detectBusy = false; if(btn) btn.disabled = false;
+  }
+  document.getElementById('detectBtn').addEventListener('click', function(){ detectPublished(true); });
 
   /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
      제품은 여행 카드를 뺀 모든 카드에, 여행은 여행 카드에는 전부, 그 밖의 카드에는 주제에 지역명이 나올 때만 붙인다. */
