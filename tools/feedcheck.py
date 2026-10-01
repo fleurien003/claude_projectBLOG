@@ -21,6 +21,12 @@ DATE = re.compile(r'\d{1,2}월\s*\d{1,2}일|지난\s*(?:주말|주|달)|어제|�
 
 # 홈피드 규칙 (docs/20_홈피드_규칙.md)
 BODY_MIN, BODY_MAX = 1300, 1700
+# 마트·생활용품형(코스트코·다이소·컬리)은 실제 상위 글 실측(1,000~2,000자대도 많음, docs/20
+# "크로스카테고리 공통 패턴")으로 하한을 낮춘다 — 2026-10-01
+CATEGORY_BODY = {
+    'costco_daiso': (1000, 1700),
+    'kurly_pick':   (1000, 1700),
+}
 SUB_MIN, SUB_MAX = 3, 5
 TAGS_EXACT = 30
 KEYWORD_MIN = 5          # 붙인 형태 + 띄운 형태 합계
@@ -38,6 +44,7 @@ TITLE_HEAD = {
     'travel_issue': (r'(20\d\d|\d{1,2}월)*',          '(2026·9월) 연휴명+행동으로 시작'),
     'travel_spot':  (r'20\d\d',                     '"2026 + 명소명"으로 시작'),
     'kurly_pick':   (r'컬리',                       '"컬리 + 품목"으로 시작'),
+    'costco_daiso': (r'',                          '"마트명(코스트코·다이소 등) + 품목/할인"으로 시작 (키워드 자체에 마트명 포함)'),
 }
 
 
@@ -74,8 +81,9 @@ def check(text, keyword, category=''):
         """사람이 눈으로 봐야 하는 것. 틀렸다고 단정하지 않는다."""
         (ok if cond else warn).append(('✅' if cond else '⚠️', label, detail))
 
-    judge(BODY_MIN <= body_len <= BODY_MAX, '본문 길이',
-          f'{body_len:,}자 (목표 {BODY_MIN:,}~{BODY_MAX:,})')
+    body_min, body_max = CATEGORY_BODY.get(category, (BODY_MIN, BODY_MAX))
+    judge(body_min <= body_len <= body_max, '본문 길이',
+          f'{body_len:,}자 (목표 {body_min:,}~{body_max:,})')
     judge(SUB_MIN <= len(subs) <= SUB_MAX, '소주제 수',
           f'{len(subs)}개 (목표 {SUB_MIN}~{SUB_MAX})')
     judge(len(tags) == TAGS_EXACT and len(set(tags)) == len(tags),
@@ -152,7 +160,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('path')
     ap.add_argument('--keyword', default='')
-    ap.add_argument('--category', default='', help='celeb_fashion·ott·finance·travel_issue·travel_spot·kurly_pick')
+    ap.add_argument('--category', default='', help='celeb_fashion·ott·finance·travel_issue·travel_spot·kurly_pick·costco_daiso·phone')
     a = ap.parse_args()
 
     text, kw, cat = load(a.path)
