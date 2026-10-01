@@ -1225,7 +1225,6 @@
 
   var TAB_DEFS = [
     { key:'urgent',  label:'🔥 마감' },
-    { key:'reserve', label:'📞 예약 필요' },
     { key:'active',  label:'진행 중' },
     { key:'booked',  label:'방문 예정' },
     { key:'drafted', label:'초안 준비' },
@@ -1308,8 +1307,6 @@
       var n = daysUntil(c.due);
       return n !== null && n <= 0;
     }
-    // 📞 예약 필요 : 예약 전 단계인데 방문일이 아직 없는 것. 마감 가까운 순으로 보여준다 (2026-10-01).
-    if(key === 'reserve') return needsReserve(c);
     // "글쓰기 대기" 탭 삭제 (2026-10-01 은아님 요청) — 방문 완료·네이버 리뷰 작성 단계도 "초안 준비" 탭에서 같이 본다.
     if(key === 'drafted') return stageOf(c) === 'drafted' || stageOf(c) === 'visited';
     return stageOf(c) === key;
@@ -1374,8 +1371,8 @@
       var pa = isActive(a), pb = isActive(b);
       if(pa !== pb) return pa ? -1 : 1;
       if(pa){
-        // 🔥 마감 탭에서는 가장 많이 지난 것부터, 📞 예약 필요 탭은 마감 가까운 순. 다른 기준을 섞지 않는다.
-        if(campStage === 'urgent' || campStage === 'reserve') return (a.due||BIG).localeCompare(b.due||BIG);
+        // 🔥 마감 탭에서는 가장 많이 지난 것부터. 다른 기준을 섞지 않는다.
+        if(campStage === 'urgent') return (a.due||BIG).localeCompare(b.due||BIG);
         var ka = stageOf(a) === 'visited' ? '0' : '1', kb = stageOf(b) === 'visited' ? '0' : '1';
         if(campStage === 'active' && ka !== kb) return ka < kb ? -1 : 1;
         var sa = isStale(a), sb = isStale(b);
@@ -1387,7 +1384,7 @@
 
     var el = document.getElementById('campList');
     if(!list.length){
-      el.innerHTML = '<div class="empty">' + (q || filterActive() ? '조건에 맞는 체험단이 없어요.' + (filterActive() ? '<br>다른 탭을 누르거나 필터를 지워보세요.' : '') : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='reserve' ? '예약할 체험단이 없어요. 👏<br>방문일이 비어 있는 예약 전 체험단이 여기 모여요.' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
+      el.innerHTML = '<div class="empty">' + (q || filterActive() ? '조건에 맞는 체험단이 없어요.' + (filterActive() ? '<br>다른 탭을 누르거나 필터를 지워보세요.' : '') : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
       return;
     }
     var limit = (campStage === 'posted' || campStage === 'closed' || campStage === 'all') && !showAllPosted && !q && !filterActive() ? 30 : list.length;
@@ -1436,7 +1433,7 @@
             (na.btn ? '<button type="button" class="btn-sm good" ' + (na.btn.draft ? 'data-draft="1"' : 'data-to="' + esc(na.btn.to) + '"') + '>' + esc(na.btn.label) + '</button>' : '') +
             '<button type="button" class="btn-sm primary" data-open="1">' + (s === 'drafted' || s === 'visited' ? '✍️ 초안·상세' : '열기') + '</button>' +
           '</div>' : '') +
-        (campStage === 'reserve' && needsReserve(c) ? reserveActionsHtml(c) : '') +
+        (needsReserve(c) ? reserveActionsHtml(c) : '') +
       '</div>';
   }
 
