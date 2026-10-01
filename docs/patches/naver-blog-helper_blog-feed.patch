@@ -1,0 +1,133 @@
+From 0fc8d308505dc06d7bc58c4091e6049246ee8ae6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 30 Sep 2026 11:15:34 +0000
+Subject: [PATCH] =?UTF-8?q?=EB=B8=94=EB=A1=9C=EA=B7=B8=20RSS=20=EC=B5=9C?=
+ =?UTF-8?q?=EA=B7=BC=20=EA=B8=80=20=EC=A1=B0=ED=9A=8C=20=EC=B6=94=EA=B0=80?=
+ =?UTF-8?q?=20(/blog-feed,=20MCP=20blog=5Ffeed)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Qe1SNjx4EZ57MPHRzPvQbr
+---
+ blog_feed.py | 64 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ main.py      | 17 ++++++++++++++
+ 2 files changed, 81 insertions(+)
+ create mode 100644 blog_feed.py
+
+diff --git a/blog_feed.py b/blog_feed.py
+new file mode 100644
+index 0000000..f176ee5
+--- /dev/null
++++ b/blog_feed.py
+@@ -0,0 +1,64 @@
++"""네이버 블로그 RSS 최근 글 목록.
++
++대시보드가 발행 글을 카드와 자동으로 맞추려면 "최근에 블로그에 실제로 올라간 글"의
++제목·주소·발행 시각이 필요하다. 클라우드 세션은 네이버 도메인이 막혀 있어서 이 서버가 대신 가져온다.
++FastAPI 에 의존하지 않게 따로 뒀다 (테스트가 쉽다).
++"""
++import re
++import time
++import datetime
++import xml.etree.ElementTree as ET
++from email.utils import parsedate_to_datetime
++from typing import Any, Dict
++
++import requests
++
++_CACHE: Dict[str, Any] = {}
++_TTL = 300  # 5분
++
++
++def _parse_items(xml_bytes: bytes) -> list:
++    root = ET.fromstring(xml_bytes)
++    items = []
++    for it in root.iter("item"):
++        title = (it.findtext("title") or "").strip()
++        link = (it.findtext("link") or "").strip().split("?")[0]
++        pub = (it.findtext("pubDate") or "").strip()
++        ts, iso = None, ""
++        if pub:
++            try:
++                dt = parsedate_to_datetime(pub)
++                ts = int(dt.timestamp() * 1000)
++                iso = dt.astimezone(datetime.timezone(datetime.timedelta(hours=9))).isoformat()
++            except Exception:
++                pass
++        if title and link:
++            items.append({"title": title, "link": link, "published": iso, "ts": ts})
++    return items
++
++
++def get_blog_feed(blog_id: str = "fleurien003", limit: int = 50, fetch=requests.get) -> Dict[str, Any]:
++    """rss.blog.naver.com/<블로그ID>.xml 의 최근 글을 돌려준다. 실패하면 {"error": ...}."""
++    bid = re.sub(r"[^A-Za-z0-9_-]", "", blog_id or "")
++    if not bid:
++        return {"error": "blog_id 가 비어 있습니다."}
++    limit = min(max(int(limit or 50), 1), 50)
++    now = time.time()
++    hit = _CACHE.get(bid)
++    if hit and now - hit["at"] < _TTL:
++        items = hit["items"]
++    else:
++        try:
++            r = fetch(f"https://rss.blog.naver.com/{bid}.xml", timeout=10,
++                      headers={"User-Agent": "Mozilla/5.0"})
++        except Exception as e:
++            return {"error": f"RSS 요청 실패: {type(e).__name__}"}
++        if r.status_code != 200:
++            return {"error": f"RSS 응답 {r.status_code}"}
++        try:
++            items = _parse_items(r.content)
++        except ET.ParseError:
++            return {"error": "RSS 를 읽지 못했습니다."}
++        _CACHE[bid] = {"at": now, "items": items}
++    return {"blog_id": bid, "count": len(items[:limit]), "items": items[:limit],
++            "fetched_at": datetime.datetime.utcnow().isoformat() + "Z"}
+diff --git a/main.py b/main.py
+index 16b0e55..72940d4 100644
+--- a/main.py
++++ b/main.py
+@@ -25,6 +25,7 @@ from typing import Optional, Dict, Any
+ # json_response=True — SSE 스트림 대신 그냥 JSON 으로 답한다. 도구가 전부 단발 조회라 충분하다.
+ # -------------------------------------------------------------
+ from fastmcp import FastMCP
++from blog_feed import get_blog_feed
+ 
+ mcp = FastMCP("naver-blog-helper")
+ mcp_app = mcp.http_app(path="/", stateless_http=True, json_response=True)
+@@ -1210,6 +1211,12 @@ def probe_kakao(query: str = "권문정플라워"):
+ # -------------------------------------------------------------
+ # 상태 확인 (/health) — 배포·연결 점검용. 키 값은 절대 돌려주지 않는다.
+ # -------------------------------------------------------------
++@app.get("/blog-feed", dependencies=[Depends(rate_guard)])
++def blog_feed_route(blog_id: str = "fleurien003", limit: int = 50):
++    """블로그 RSS 최근 글(제목·주소·발행 시각). 발행 자동 감지용."""
++    return get_blog_feed(blog_id=blog_id, limit=limit)
++
++
+ @app.get("/health")
+ def health():
+     keys = {
+@@ -1290,6 +1297,16 @@ def blog_read(url: str, limit: int = 9000) -> Dict[str, Any]:
+     return read_blog(url=url, limit=limit)
+ 
+ 
++@mcp.tool
++def blog_feed(blog_id: str = "fleurien003", limit: int = 50) -> Dict[str, Any]:
++    """네이버 블로그에 최근 실제로 발행된 글 목록(제목·주소·발행 시각)을 RSS로 가져온다.
++
++    발행 여부를 자동으로 확인할 때 쓴다. 카드나 체험단의 키워드가 제목에 들어 있는 글을 찾아 맞춘다.
++    blog_id: 블로그 아이디 (기본 fleurien003). limit: 최대 50.
++    """
++    return get_blog_feed(blog_id=blog_id, limit=limit)
++
++
+ @mcp.tool
+ def news_mentions(query: str, display: int = 10, sort: str = "date") -> Dict[str, Any]:
+     """소재(인물+장소·음식·브랜드 등 고유명)가 실제로 뉴스에서 화제였는지 확인한다.
+-- 
+2.43.0
+
