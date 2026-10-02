@@ -1726,6 +1726,8 @@
       '- 블로그 글만 출력해. 설명이나 메모는 쓰지 마.'
     ].filter(function(x){ return x !== ''; }).join('\n').replace(/\n\[/g, '\n\n[');
     var parts = [rules, '', '[프롬프트]', composePrompt(c)];
+    var tr = c.template ? tplDraftRules(c.template) : '';
+    if(tr) parts.push('', '[이 유형 템플릿 규칙 — 위 규칙과 함께 지켜]', tr);
     if(c.offer || c.note) parts.push('', '[업체 참고 자료 — 글에 옮기지 말 것]', (c.offer || (c.note || '').split(' / 초안 자동생성')[0]).slice(0, 1200));
     if(!c.prompt) parts.push('', '[업체 기본 정보]', '업체명: ' + (c.name || '') + (tpl ? ' / 유형: ' + tpl.name : ''));
     if(prev) parts.push('', '[같은 업체 이전 글 — 소주제 구성·말투·훅을 따라가고, 본문 적절한 곳에 한 줄로 연결: 이전 글 : {제목} / {요약 한 줄} / blog.naver.com]', prev.draft_content.slice(0, 5000));
@@ -1800,103 +1802,98 @@
     var region = m ? m[1].split(/[\/\s]+/).filter(Boolean).pop() : '';
     return (region ? region + ' ' : '') + core;
   }
-  /* 블로그 후기 재료 (2026-10-03 르나 확정 "프롬프트에 [확인 필요]로 올리는 건 없다, 토큰 0 조회로 채운다").
-     뷰어 커넥터 blog_search(검색 API) 10건의 제목·요약 + 업체명이 제목에 든 글 1편 본문(blog_read, 3,500자)을 받는다.
-     조회는 Claude 토큰 0. 이 재료로 영업시간·주차·가격·후기 포인트를 채우고, 못 찾은 줄은 뺀다. */
-  async function lookupBlogs(c){
+  /* 업체 재료 한 번에 (2026-10-03 르나 요청 "토큰 드는 건 최소로") — 뷰어 커넥터 place_facts 1회, Claude 토큰 0.
+     place: 주소·전화(카카오) + category(네이버 플레이스 분류 = 업종 기준). facts: 서버가 후기 본문 최대 5편을 읽어
+     영업시간·주차·가격이 나온 문장만 각 6개. snippets: 후기 제목·요약 10개. 블로그 본문 통째는 Claude 에게 보내지 않는다. */
+  async function lookupFacts(c){
     var core = coreName(c && c.name).replace(/[_(].*$/, '').trim(); if(!core) return null;
-    var q = placeQuery(Object.assign({}, c, { name: (String(c.name).match(/^\s*\[[^\]]*\]/) || [''])[0] + core }));
+    var m = String(c.name).match(/^\s*\[([^\]]*)\]/);
+    var region = m ? m[1].split(/[\/\s]+/).filter(Boolean).pop() : '';
     await initKeywordMcp();
     if(!mcpNs) return null;
     try{
-      var d = await mcpSearch('blog_search', q, 'sim', 10);
-      var key = core.replace(/\s+/g, '');
-      var items = (d.items || []).filter(function(n){ return (String(n.title || '') + String(n.description || '')).replace(/<[^>]+>|\s+/g, '').indexOf(key) >= 0; });
-      if(!items.length) return null;
-      var pick = items.find(function(n){ return n.readable && String(n.title || '').replace(/\s+/g, '').indexOf(key) >= 0; }) || items.find(function(n){ return n.readable; });
-      var body = '';
-      if(pick){
-        try{
-          var r = await mcpNs.callTool(MCP_SERVER, 'blog_read', { url: pick.link, limit: 3500 }, { cache: { staleTime: 86400000 } });
-          var rd = r && r.payload; if(typeof rd === 'string'){ try{ rd = JSON.parse(rd); }catch(e){ rd = { text: rd }; } }
-          body = String((rd && (rd.text || rd.content || rd.body)) || '').slice(0, 3500);
-        }catch(e){}
-      }
-      return { query: q, list: items.slice(0, 8).map(function(n){ return '- ' + String(n.title || '').replace(/<[^>]+>/g, '') + ' — ' + String(n.description || '').replace(/<[^>]+>/g, '').slice(0, 220); }).join('\n'), body: body, bodyTitle: pick ? String(pick.title || '').replace(/<[^>]+>/g, '') : '' };
-    }catch(e){ return null; }
-  }
-  async function lookupPlace(c){
-    if(!c || c.template === 's_derm' || (c.types || []).indexOf('피부과') >= 0) return null;
-    // 캠페인 페이지에서 받은 주소·전화가 있으면 그걸 먼저 쓴다 (2026-10-03, 토큰 0·정확). 둘 중 하나만 있으면 지역검색으로 나머지를 보탠다.
-    var own = { title: coreName(c.name), address: c.address || '', jibun: '', phone: c.phone || '', category: '', link: '' };
-    if(own.address && own.phone) return own;
-    var q = placeQuery(c); if(!q) return own.address || own.phone ? own : null;
-    await initKeywordMcp();
-    if(!mcpNs) return null;
-    try{
-      var res = await mcpNs.callTool(MCP_SERVER, 'place_lookup', { name: q }, { cache: { staleTime: 86400000 } });
+      var res = await mcpNs.callTool(MCP_SERVER, 'place_facts', { name: core, region: region }, { cache: { staleTime: 86400000 } });
       var d = res && res.payload;
       if(typeof d === 'string'){ try{ d = JSON.parse(d); }catch(e){ return null; } }
-      if(!d || typeof d !== 'object' || d.error || !(d.roadAddress || d.address || d.phone)) return own.address || own.phone ? own : null;
-      // 같은 이름의 다른 지점을 잡는 경우가 있다(청밀당 부천 → 서초 사당점). 캠페인 주소의 시·군·구가 조회 주소에 없으면 조회값은 쓰지 않는다.
-      if(own.address){ var areas = own.address.match(/[가-힣]+[시군구]/g) || []; var got = (d.roadAddress || '') + ' ' + (d.address || ''); if(areas.length && !areas.some(function(a){ return got.indexOf(a) >= 0; })) return own; }
-      return { title: d.title || own.title, address: own.address || d.roadAddress || d.address || '', jibun: own.address ? '' : (d.roadAddress && d.address ? d.address : ''), phone: own.phone || d.phone || '', category: d.category || '', link: d.link || '' };
-    }catch(e){ return own.address || own.phone ? own : null; }
+      return d && typeof d === 'object' && !d.error ? d : null;
+    }catch(e){ return null; }
   }
-  function buildPromptGenPrompt(c, place, blogs){
-    // 토큰 절약: 체험단 프롬프트에는 홈피드(h_) 템플릿이 필요 없다. 템플릿이 이미 정해져 있으면 그 하나만 보낸다.
-    var keys = Object.keys(templates).filter(function(k){ return !/^h_/.test(k); });
-    if(c.template && templates[c.template]) keys = [c.template];
-    var list = keys.map(function(k){
-      var t = templates[k] || {};
-      return '- ' + k + ' | ' + (t.name || '') + ' | ' + (t.group || '') + (t.types ? ' | ' + [].concat(t.types).join(',') : '');
-    }).join('\n');
-    var tplBodies = keys.map(function(k){
-      return '=== ' + k + ' ===\n' + String((templates[k] || {}).body || '').slice(0, 2500);
-    }).join('\n\n');
+  /* 주소·전화: 캠페인 페이지 값이 먼저, 없을 때만 조회값. 조회값이 캠페인 주소와 다른 시·군·구면(같은 이름 다른 지점) 쓰지 않는다. */
+  function mergePlace(c, p){
+    var own = { title: coreName(c.name), address: c.address || '', phone: c.phone || '', category: '' };
+    if(!p || typeof p !== 'object' || p.error) return own.address || own.phone ? own : null;
+    var got = (p.roadAddress || '') + ' ' + (p.address || '');
+    var areas = own.address.match(/[가-힣]+[시군구]/g) || [];
+    var same = !own.address || !areas.length || areas.some(function(a){ return got.indexOf(a) >= 0; });
+    if(!same) return own;
+    return { title: p.title || own.title, address: own.address || p.roadAddress || p.address || '', phone: own.phone || p.phone || '', category: p.naver_category || p.category || '' };
+  }
+  /* 템플릿은 페이지가 고른다 (토큰 0): 네이버 플레이스 분류 → 등록된 유형 → 제공 내역 → 업체명 순. 키워드 표는 루틴 3)과 같은 기준(근거 없는 판단값). */
+  var TPL_RULES = [
+    ['s_derm', /병원|의원|한의원|치과|클리닉|피부과/], ['s_hair', /헤어|미용실/], ['s_vocal', /음악|보컬|악기|실용음악/],
+    ['s_pt', /헬스|필라테스|요가|PT|골프|테니스|수영|클라이밍|운동/], ['s_flower', /꽃/], ['s_car', /자동차|세차|정비|타이어|엔진오일/],
+    ['s_esthetic', /피부|네일|왁싱|슈가링|속눈썹|마사지|스파|에스테틱|미용|뷰티|체형|발톱|각질/],
+    ['p_travel_hotel', /숙박|호텔|펜션|모텔|리조트/], ['p_travel_spot', /관광|전시|테마파크/],
+    ['s_food', /음식|카페|디저트|베이커리|술집|주점|맛집|식당|한식|양식|일식|중식|분식|샐러드|도시락|컵밥/], ['p_living', /청소|가전|리빙|생활용품/]
+  ];
+  function pickTemplate(c, category){
+    if(c.template && templates[c.template]) return c.template;
+    var srcs = [category, (c.types || []).join(' '), c.offer, coreName(c.name)];
+    for(var i = 0; i < srcs.length; i++){
+      var t = String(srcs[i] || '');
+      if(!t) continue;
+      for(var j = 0; j < TPL_RULES.length; j++) if(TPL_RULES[j][1].test(t) && templates[TPL_RULES[j][0]]) return TPL_RULES[j][0];
+    }
+    return '';
+  }
+  /* 템플릿의 빈칸 부분만(첫 "[규칙 블록" 앞까지). 저장되는 프롬프트도 이 부분뿐이라 규칙 블록은 보낼 필요가 없다. */
+  function tplTop(k){ var b = String((templates[k] || {}).body || ''); var i = b.indexOf('\n['); return (i > 0 ? b.slice(0, i) : b).slice(0, 2500); }
+  function factsText(f){
+    if(!f) return '';
+    var fx = f.facts || {}, out = [];
+    if((fx.hours || []).length) out.push('영업시간 관련: ' + fx.hours.join(' / '));
+    if((fx.parking || []).length) out.push('주차 관련: ' + fx.parking.join(' / '));
+    if((fx.price || []).length) out.push('가격 관련: ' + fx.price.join(' / '));
+    var sn = (f.snippets || []).slice(0, 8).map(function(x){ return '- ' + String(x.title || '') + ' — ' + String(x.summary || '').slice(0, 160); });
+    return (out.length ? out.join('\n') + '\n' : '') + (sn.length ? '[후기 제목·요약]\n' + sn.join('\n') : '');
+  }
+  function buildPromptGenPrompt(c, place, facts, key){
+    // 토큰 절약 (2026-10-03 르나 지적 "템플릿은 1개만 고르면 되는데 왜 20개를 다 읽어?"): 페이지가 고른 템플릿 하나의 빈칸 부분만 보낸다.
+    // 페이지가 못 고른 드문 경우에만 체험단 템플릿(s_·p_)의 빈칸 부분을 보내고 Claude 가 고르게 한다.
+    var keys = key ? [key] : Object.keys(templates).filter(function(k){ return /^[sp]_/.test(k); });
+    var tplBodies = keys.map(function(k){ return '=== ' + k + ' (' + ((templates[k] || {}).name || '') + ') ===\n' + tplTop(k); }).join('\n\n');
+    var ft = factsText(facts);
     return [
-      '너는 르나의 블로그 체험단 프롬프트를 만드는 조수야. 아래 체험단에 맞는 템플릿을 하나 고르고, 그 템플릿의 빈칸을 채워서 프롬프트를 완성해.',
+      key ? '너는 르나의 블로그 체험단 프롬프트를 만드는 조수야. 아래 템플릿의 빈칸을 이 체험단에 맞게 채워서 프롬프트를 완성해.'
+          : '너는 르나의 블로그 체험단 프롬프트를 만드는 조수야. 아래 템플릿 중 이 체험단에 맞는 것 하나를 고르고 빈칸을 채워서 프롬프트를 완성해.',
       '',
       '[체험단 정보]',
       '업체명: ' + (c.name || ''),
       '플랫폼: ' + (c.platform || ''),
-      '유형(참고, 틀릴 수 있음): ' + ((c.types || []).join(', ') || '없음'),
-      '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1200),
+      '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1000),
       '업체 요청 키워드: ' + String(c.keywords || '없음').slice(0, 300),
-      c.address ? '업체 주소(캠페인 페이지): ' + String(c.address).slice(0, 120) : '',
-      '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 600),
-      c.raw ? '캠페인 페이지 원문(르나가 붙여넣음 — 위 항목이 비어 있으면 여기서 찾아 쓴다):\n' + String(c.raw).slice(0, 4000) : '',
+      '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 500),
+      c.raw ? '캠페인 페이지 원문(르나가 붙여넣음, 위 항목이 비어 있으면 여기서 찾아 쓴다):\n' + String(c.raw).slice(0, 3000) : '',
       '받은 것(르나 기록): ' + String(c.received || '아직 없음').slice(0, 400),
-      place ? '' : '',
-      place ? '[업체 정보 — 네이버 지역검색·카카오 조회 결과, 그대로 쓸 것]' : '',
-      place ? ('상호: ' + place.title + (place.category ? ' / 분류: ' + place.category : '') + '\n주소: ' + place.address + (place.jibun ? ' (지번 ' + place.jibun + ')' : '') + '\n전화: ' + (place.phone || '없음')) : '',
-      blogs ? '\n[블로그 후기 — 네이버 블로그 검색 "' + blogs.query + '" 결과 제목·요약]\n' + blogs.list : '',
-      blogs && blogs.body ? '\n[블로그 후기 1편 본문 — "' + blogs.bodyTitle + '" (영업시간·주차·가격·메뉴 구성은 여기서 찾는다)]\n' + blogs.body : '',
+      place ? '[업체 정보, 그대로 쓸 것]\n상호: ' + place.title + (place.category ? ' / 업종(네이버 플레이스): ' + place.category : '') + '\n주소: ' + place.address + '\n전화: ' + (place.phone || '없음') : '',
+      ft ? '[블로그 후기에서 뽑은 재료, 서버가 후기를 읽어 뽑은 문장]\n' + ft : '',
       '',
-      '[템플릿 목록]',
-      list,
-      '',
-      '[템플릿 원문]',
+      '[템플릿]',
       tplBodies,
       '',
-      '[템플릿 고르는 법]',
-      '- 업체명보다 제공 내역이 정확하다. 카페 이름인데 제공 내역이 레슨이면 레슨 기준으로 고른다.',
-      '- 방문해서 받는 서비스면 검색형(s_로 시작), 집으로 받는 제품이면 판매형(p_로 시작).',
-      '- 병원·의원·한의원 등 의료기관이면 s_derm. 이때 병원명·주소·연락처는 프롬프트 어디에도 쓰지 마.',
-      '',
       '[채우는 법]',
-      '- 고른 템플릿의 구조·문구·공통 규칙은 한 글자도 바꾸지 말고 빈칸만 채워.',
-      '- 1️⃣ 제목, 2️⃣ 핵심 키워드(지역+업종 롱테일 1개 + 보조 2~4개), 3️⃣·4️⃣의 [지역]/[상황]/[고민], 소주제 제목의 [프로그램명]/[시술명]/[제품명]을 이 업체에 맞게 채워.',
-      '- 업체 요청 키워드가 있으면 그중 1개를 2️⃣ 메인 키워드로, 나머지는 보조 키워드와 해시태그 후보에 전부 넣어. 미션에 적힌 글자 수·키워드 횟수는 5️⃣에 한 줄로 옮겨.',
-      '- 5️⃣ 참고할 관련 정보(판매형은 7️⃣)에는 **글에 들어갈 것만** 적어: [리뷰 가이드] = 업체 요청 키워드·미션(횟수·글자 수)·글에 꼭 언급할 메뉴/서비스. 예약 방법·체험 가능 시간·방문 전 연락·추가금 본인 부담·초대권·신청 기간처럼 **체험단 참가자에게만 해당하는 조건은 넣지 마** (리뷰에 섞여 들어간다). 그다음 [글 재료] = 위 [블로그 후기]에서 반복되는 메뉴·서비스·가격·칭찬 포인트를 넉넉히 (초안이 웹 검색 없이 이 재료만 쓴다). 평점·가격이 재료에 없으면 그 줄을 빼.',
-      '- ①위치 칸: 📍 주소·☎️ 전화번호는 [업체 정보]·업체 주소(캠페인 페이지) 값을 글자 그대로, 🕖 영업시간·🚘 주차는 [블로그 후기]에 나온 것만 쓴다. **[확인 필요]·"방문 전 매장 문의"는 프롬프트 어디에도 쓰지 마** (2026-10-03 르나 확정). 못 찾은 항목은 그 줄을 통째로 빼고, 주차를 못 찾으면 소주제 이름도 "1. 위치"로 써.',
-      place && place.category ? '- 템플릿은 위 [업체 정보]의 분류를 1순위로 보고 고른다 (예: "음식점 > 카페" → s_food).' : '',
-      '- 경험 칸(검색형 "6️⃣ 경험", 판매형 "3️⃣ 나의 실사용 후기 경험담") 아래 안내 문구는 지우고 {{경험}} 한 줄만 둬. 예: "6️⃣ 경험 :\\n{{경험}}"',
-      '- "7️⃣ 관련 링크" 줄은 넣지 마. 없는 정보를 지어내지 마.',
+      '- 템플릿의 구조·문구는 한 글자도 바꾸지 말고 빈칸만 채워.',
+      '- 1️⃣ 제목(롱테일 키워드 → 작은 키워드 → 업체명, 같은 단어 두 번 금지), 2️⃣ 핵심 키워드(메인 1개 + 보조 2~4개), 3️⃣·4️⃣의 [지역]/[상황]/[고민], 소주제의 [프로그램명]/[시술명]/[제품명].',
+      '- 업체 요청 키워드가 있으면 그중 1개를 2️⃣ 메인으로, 나머지는 보조 키워드와 해시태그 후보에 전부. 미션의 글자 수·키워드 횟수는 5️⃣에 한 줄로.',
+      '- 5️⃣(판매형은 7️⃣)에는 글에 들어갈 것만: [리뷰 가이드] = 업체 요청 키워드·미션·꼭 언급할 메뉴/서비스, [글 재료] = 위 후기 재료에서 반복되는 메뉴·서비스·가격·칭찬 포인트. 예약 방법·체험 가능 시간·방문 전 연락·추가금·초대권·신청 기간 같은 참가자 조건은 넣지 마. 재료에 없는 가격·평점은 줄째 빼.',
+      '- ①위치 칸: 📍·☎️는 [업체 정보] 값 그대로, 🕖 영업시간·🚘 주차는 후기 재료에 나온 것만. **[확인 필요]·"방문 전 매장 문의"는 어디에도 쓰지 마.** 못 찾은 줄은 빼고, 주차를 못 찾으면 소주제 이름도 "1. 위치".',
+      '- 병원·의원(s_derm)이면 병원명·주소·연락처를 어디에도 쓰지 마.',
+      '- 경험 칸(검색형 "6️⃣ 경험", 판매형 "3️⃣ 나의 실사용 후기 경험담") 아래 안내 문구는 지우고 {{경험}} 한 줄만 둬.',
+      '- "7️⃣ 관련 링크" 줄은 넣지 마. 없는 정보를 지어내지 마. 협찬·체험단·체험·제공 같은 말은 프롬프트에도 쓰지 마.',
       '',
       '[출력 형식]',
-      '첫 줄에 "TEMPLATE: <템플릿키>" 만 쓰고, 그다음 줄부터 완성된 프롬프트 전문만 출력해. 설명·인사말은 쓰지 마.'
-    ].join('\n');
+      '첫 줄에 "TEMPLATE: <템플릿키>" 만 쓰고, 그다음 줄부터 완성된 프롬프트만 출력해. 설명·인사말은 쓰지 마.'
+    ].filter(function(x){ return x !== ''; }).join('\n');
   }
 
 
@@ -1915,6 +1912,8 @@
     if(Number(d.amount) > 0 && !(Number(c.amount) > 0)) p.amount = Math.round(Number(d.amount));
     ['offer', 'keywords', 'mission', 'address', 'phone', 'reserve_phone'].forEach(function(k){ if(d[k] && String(d[k]).trim() && !(c[k] && String(c[k]).trim())) p[k] = String(d[k]).trim(); });
     if(Array.isArray(d.types) && d.types.length && !(c.types || []).length) p.types = d.types.slice(0, 3);
+    // 업종 기준은 네이버 플레이스 (2026-10-03 르나 확정). 템플릿을 직접 고르지 않은 카드는 네이버 분류로 유형을 맞춘다.
+    if(d.place_category){ p.place_category = String(d.place_category); if(d.types_source === 'naver' && Array.isArray(d.types) && d.types.length && !c.template) p.types = d.types.slice(0, 3); }
     return p;
   }
   async function fetchCampaignInfo(id, manual){
@@ -1978,13 +1977,15 @@
       var got = await fetchCampaignInfo(id, false);
       if(got) c = Object.assign({}, c, got);
     }
-    if(st){ st.className = 'auto-line wait'; st.textContent = '📍 업체 주소·전화 조회 중… (토큰 0)'; }
-    var place = await lookupPlace(c);
-    if(st){ st.className = 'auto-line wait'; st.textContent = '📝 블로그 후기 검색 중… (토큰 0)'; }
-    var blogs = (c.template === 's_derm' || (c.types || []).indexOf('피부과') >= 0) ? null : await lookupBlogs(c);
-    if(st){ st.className = 'auto-line wait'; st.textContent = (place ? '📍 ' + (place.address || '') + ' · ' : '📍 업체 정보 못 찾음 · ') + '⚡ 템플릿 고르고 프롬프트 쓰는 중… (20~40초)'; }
+    if(st){ st.className = 'auto-line wait'; st.textContent = '📍 업체 정보·블로그 후기 조회 중… (토큰 0, 10~30초)'; }
+    var facts = await lookupFacts(c);
+    var isMed = c.template === 's_derm' || (c.types || []).indexOf('피부과') >= 0;
+    var place = isMed ? null : mergePlace(c, facts && facts.place);
+    var pcat = (facts && facts.place && (facts.place.naver_category || facts.place.category)) || '';
+    var key = pickTemplate(c, pcat);
+    if(st){ st.className = 'auto-line wait'; st.textContent = (place ? '📍 ' + (place.address || '') + ' · ' : '') + '⚡ ' + (key ? ((templates[key] || {}).name || key) + ' 템플릿으로 ' : '') + '프롬프트 쓰는 중… (20~40초)'; }
     try{
-      var res = await sampleFn(buildPromptGenPrompt(c, place, blogs), {
+      var res = await sampleFn(buildPromptGenPrompt(c, place, facts, key), {
         cache: false, signal: ctl.signal,
         onText: function(u){
           var v = document.getElementById('dPromptView');
@@ -1993,14 +1994,17 @@
       });
       var out = String(res.text || '').trim();
       var m = out.match(/^TEMPLATE:\s*([A-Za-z0-9_]+)/);
-      var key = m && templates[m[1]] ? m[1] : (c.template || '');
+      key = key || (m && templates[m[1]] ? m[1] : (c.template || ''));
       var body = out.replace(/^TEMPLATE:.*\n?/, '').trim();
       if(!body){ throw new Error('empty'); }
       var cur = camps.find(function(x){ return x.id === id; }) || c;
       await db.doc('campaigns/' + id).update({
         template: key, prompt: body, prompt_updated_at: Date.now(),
         auto_status: 'pending',
-        auto_note: '⚡ 대시보드에서 즉시 작성 (' + (place ? '주소·전화 조회' : '업체 정보 조회 실패') + ' · ' + (blogs ? '블로그 후기 ' + blogs.list.split("\n").length + '건' + (blogs.body ? '+본문 1편' : '') : '블로그 후기 못 찾음') + ', 조회 토큰 0 · 키워드 검색량은 다음 자동화)',
+        auto_note: '⚡ 대시보드에서 즉시 작성 (' + (pcat ? '업종 ' + pcat + ' · ' : '') + (facts ? '후기 ' + (facts.relevant_count || 0) + '건에서 영업시간·주차·가격 문장 추출' : '후기 조회 실패') + ', 조회 토큰 0 · 키워드 검색량은 다음 자동화)',
+        place_category: pcat || cur.place_category || '',
+        types: pcat && tplMainType(key) ? [tplMainType(key)] : (cur.types || []),
+        phone: cur.phone || (place && place.phone) || '',
         note: ((cur.note || '') + '\n⚡ 프롬프트 즉시 작성 (' + localToday() + (templates[key] ? ', 템플릿 ' + (templates[key].name || key) : '') + ')').trim()
       });
       toast('프롬프트 완성! ' + ((templates[key] && templates[key].name) || key) + ' 템플릿 ⚡');
@@ -2596,8 +2600,18 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   function experienceText(c){ return '6️⃣ 경험 : ' + experienceBody(c); }
   // 프롬프트의 {{경험}} 자리에 내가 쓴 받은 것·후기를 넣음. 자리표시가 없으면(옛 데이터) 6️⃣ 이후를 대체
+  /* 루틴이 템플릿 규칙 블록까지 프롬프트에 저장한 옛 건(2026-10-03 수동 실행 11건)은 그 블록을 잘라 쓴다. 규칙은 초안 단계에서 tplDraftRules 로 한 번만 붙인다. */
+  function promptOnly(p){ p = String(p || ''); var i = p.indexOf('\n[재료 반영 규칙'); return i > 0 ? p.slice(0, i).trim() : p; }
+  /* 초안에 붙일 템플릿 규칙: 초안 지시문(buildDraftPrompt)에 이미 있는 문체·어투·도입부·협찬·내 경험·재료 반영 블록은 빼고,
+     유형별로만 다른 블록(소구 규칙, 안마·에스테틱 단어, 의료기관, 피부과 협찬 예외)과 긍정 프레이밍·소주제 취사선택·저품질·공통 규칙만 붙인다. */
+  var TPL_DUP_RE = /^\[(문체 규칙|어투 규칙|도입부 규칙|협찬 표기 규칙 - 2026-09-21 확정 \/ 체험단 공통|내 경험 우선|재료 반영 규칙)/;
+  function tplDraftRules(k){
+    var b = String((templates[k] || {}).body || '');
+    var parts = b.split(/\n(?=\[[^\]\n]{2,80}\])/);
+    return parts.slice(1).filter(function(x){ return !TPL_DUP_RE.test(x); }).join('\n').trim();
+  }
   function promptParts(c){
-    var p = c.prompt || '';
+    var p = promptOnly(c.prompt);
     var i = p.indexOf(EXP_TOKEN);
     if(i >= 0) return { before: p.slice(0, i), mine: experienceBody(c), after: p.slice(i + EXP_TOKEN.length) };
     return { before: p.replace(/\n*6️⃣[\s\S]*$/, '').trim() + (p ? '\n' : ''), mine: experienceText(c), after: '' };
@@ -2631,6 +2645,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('dInfoView').innerHTML =
       kvRow('체험단 플랫폼', esc(c.platform)) +
       kvRow('유형', esc((templates[tplGuess(c)] && templates[tplGuess(c)].name) || (c.types || []).join(', '))) +
+      kvRow('업종 (네이버 플레이스)', esc(c.place_category || '')) +
       kvRow('방문일', visit) +
       kvRow('마감일', c.due ? esc(fmtShort(c.due)) : '') +
       kvRow('지원금', c.amount ? esc(won(c.amount)) : '') +
