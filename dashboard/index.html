@@ -360,6 +360,11 @@
   .me-row{ margin-bottom:10px; }
   .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
   @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
+  /* 이전 위치(왼쪽 아래 ←)·맨 위로(오른쪽 아래 ↑) 둥근 버튼 — 모든 화면 공통 (2026-10-03 은아님 요청) */
+  .nav-fab{ position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 20px); z-index:45; width:44px; height:44px; border-radius:999px; border:1px solid var(--line); background:var(--card); color:var(--ink); font:inherit; font-size:20px; font-weight:800; line-height:1; box-shadow:var(--shadow); cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.94; padding:0; }
+  .nav-fab:hover{ border-color:var(--accent); color:var(--accent); }
+  .nav-back{ left:14px; }
+  .nav-top{ right:14px; }
 </style>
 
 <div class="wrap" id="mainView">
@@ -533,6 +538,8 @@
   </div>
 </div>
 
+<button type="button" class="nav-fab nav-back" id="navBack" aria-label="이전 위치로" title="이전 위치로" hidden>←</button>
+<button type="button" class="nav-fab nav-top" id="navTop" aria-label="맨 위로" title="맨 위로" hidden>↑</button>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -4347,6 +4354,40 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     out.push('- 여행 글에서 위 [르나가 다녀온 여행]에 같은 지역이 있으면, 그 기록에 있는 내용만 "저는 ~에 다녀왔는데"처럼 1인칭 경험으로 이어 붙이고 나머지는 정보로 써. 기록이 없는 지역은 다녀왔다고 쓰지 마.');
     return out.join('\n');
   }
+
+  /* ── 이전 위치로(←) · 맨 위로(↑) ──
+     화면(해시)을 옮길 때마다 떠나는 화면의 스크롤 위치를 쌓아 두고, ←를 누르면 직전 화면으로 돌아가 그 위치로 스크롤한다.
+     ↑는 300px 넘게 내려왔을 때만 보이고 한 번에 맨 위로 올라간다. 이 핸들러가 route() 보다 먼저 등록돼야 떠나기 전 위치를 읽는다. */
+  var navStack = [], navCur = { h: location.hash, y: 0 }, navBackGo = false, navBackY = 0;
+  function navUpdate(){
+    var b = document.getElementById('navBack'), t = document.getElementById('navTop');
+    if(b) b.hidden = !navStack.length;
+    if(t) t.hidden = navCur.y < 300;
+  }
+  function navRestoreScroll(y){
+    var tries = 0;
+    (function tick(){
+      window.scrollTo(0, y); tries++;
+      if(tries < 15 && Math.abs((window.scrollY || 0) - y) > 4) setTimeout(tick, 100);   // 내용이 늦게 그려지면 다시 시도
+    })();
+  }
+  window.addEventListener('scroll', function(){ navCur.y = window.scrollY || document.documentElement.scrollTop || 0; navUpdate(); }, { passive: true });
+  window.addEventListener('hashchange', function(){
+    var back = navBackGo, y = navBackY;
+    navBackGo = false;
+    if(!back){ navStack.push({ h: navCur.h, y: navCur.y }); if(navStack.length > 30) navStack.shift(); }
+    navCur = { h: location.hash, y: 0 };
+    navUpdate();
+    setTimeout(function(){ if(back) navRestoreScroll(y); else window.scrollTo(0, 0); }, 40);
+  });
+  document.getElementById('navBack').addEventListener('click', function(){
+    var e = navStack.pop();
+    if(!e){ navUpdate(); return; }
+    if(e.h === location.hash){ navRestoreScroll(e.y); navUpdate(); return; }
+    navBackGo = true; navBackY = e.y;
+    location.hash = e.h.replace(/^#/, '');
+  });
+  document.getElementById('navTop').addEventListener('click', function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); });
 
   /* ─────────────── 라우팅 ─────────────── */
   function show(view){
