@@ -2982,6 +2982,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     return '';
   }
 
+  /* 검색창에 친 키워드 자신도 연관 키워드처럼 📰 뉴스·📝 블로그를 볼 수 있게 한다 (2026-10-02 은아님 요청).
+     카드 안 미니 패널·펼침 패널에는 붙이지 않고 맨 위 검색 결과(#kwRes)에만 붙인다. 조회는 토큰 0. */
+  function mainSearchBtns(kw, res){
+    if(!kw || !res || res.id !== 'kwRes') return '';
+    return '<div class="draft-btns" style="margin:10px 0 4px"><button type="button" class="btn-sm' + (newsKw[kw] && newsKw[kw].open ? ' primary' : '') + '" data-kwnews="' + esc(kw) + '">📰 뉴스</button>' +
+      '<button type="button" class="btn-sm' + (blogKw[kw] && blogKw[kw].open ? ' primary' : '') + '" data-kwblog="' + esc(kw) + '">📝 블로그</button></div>' +
+      newsKwSlot(kw, '') + blogKwSlot(kw, '');
+  }
+
   function kwRender(d, targetEl){
     var res = targetEl || document.getElementById('kwRes');
     var t = d.trend || {};
@@ -3066,7 +3075,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         (t.peak_date && t.trust !== '무시' ? '<br>최근 60일 최고점 ' + esc(t.peak_date) : '') +
         (t.notice ? '<br>' + esc(t.notice) : '') +
         (t.error ? '<br>추이를 못 가져왔어요 — 검색량 수치만 보시면 돼요' : '') +
-      '</div>' + rel;
+      '</div>' + mainSearchBtns(d.keyword, res) + rel;
     res._kwData = d;
     res.hidden = false;
   }
