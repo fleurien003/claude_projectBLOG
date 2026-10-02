@@ -3731,7 +3731,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var sortBtns = o.kwSort ? '<div style="margin:0 0 6px">' + ['sim', 'date'].map(function(sv){
       return '<button type="button" class="btn-sm' + (o.sort === sv ? ' primary' : '') + '" data-blogsort="' + sv + '" data-blogq="' + esc(q) + '" style="display:inline-block;width:auto;margin:0 6px 0 0;padding:6px 12px">' + (sv === 'date' ? '최신순' : '관련도순') + '</button>';
     }).join('') + '</div>' : '';
-    return sortBtns + '<div class="save-status" style="margin:0 0 6px">네이버 블로그만 · 제목에 "' + esc(q) + '" 있는 글 ' + t + '건 (' + (o.scanned ? '훑은 ' + o.scanned + '건 중' : '받은 ' + items.length + '건 중') + ')' + (o.partial ? ' · 일부 페이지는 못 받았어요' : '') +
+    var nvLink = '<div style="margin:0 0 6px"><a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=' + encodeURIComponent(q) + '" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:700;color:var(--ink)">🔗 네이버 블로그 탭에서 보기 (관련도순)</a></div>';
+    return sortBtns + nvLink + '<div class="save-status" style="margin:0 0 6px">네이버 블로그만 · 제목에 "' + esc(q) + '" 있는 글 ' + t + '건 (' + (o.scanned ? '훑은 ' + o.scanned + '건 중' : '받은 ' + items.length + '건 중') + ')' + (o.partial ? ' · 일부 페이지는 못 받았어요' : '') +
       ' · <button type="button" class="btn-link" data-blogrecent="1">' +
       (blogRecentOnly ? '최근 ' + BLOG_RECENT_MONTHS + '개월만 보는 중 (' + blogShown(items, q) + '건) · 전체 기간 보기' : '전체 기간 · 최근 ' + BLOG_RECENT_MONTHS + '개월만 보기') + '</button></div>';
   }
