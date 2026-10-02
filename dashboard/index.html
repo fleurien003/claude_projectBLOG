@@ -3694,11 +3694,23 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      (은아님 요청 2026-10-03, 서버 naver-blog-helper b6f41c5). 검색 API 는 티스토리 같은 외부 블로그도 섞어 주기 때문이다.
      훑은 원본은 Claude 에게 가지 않아 토큰은 0이다. 서버가 새 인자를 몰라서 30건 그대로 오면(scanned 없음) 아래 blogKeep 이 화면에서 같은 기준으로 거른다. */
   var BLOG_SCAN = 150;
+  /* 1순위: 네이버 검색 화면의 블로그 탭 첫 페이지(source:'naver_tab', 약 30건, 화면 순서 그대로, 날짜는 "5일 전" 표기) — 은아님 요청 2026-10-03.
+     ⚠️ 이 화면은 robots.txt 가 봇을 막는다. 은아님이 위험을 알고 정했고, 서버는 정직한 UA·10분 캐시·3초 간격으로만 읽고 차단되면 우회하지 않는다.
+     2순위(읽지 못했을 때): API 150건 훑기. nv:true 인 결과는 화면 순서 그대로라 제목 필터를 하지 않는다. */
   async function blogFetchRaw(q, sort){
-    var d = await mcpSearch('blog_search', q, sort || 'sim', 30, { scan: BLOG_SCAN, naver_only: true, title_has: q });
-    return { total: d.total || 0, scanned: d.scanned || 0, partial: !!d.partial, items: (d.items || []).slice(0, 60).map(function(n){
+    var mapItem = function(n){
       return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), blogger: n.blogger || '', postdate: String(n.postdate || ''), readable: !!n.readable };
-    }) };
+    };
+    var nvErr = '';
+    try{
+      var nv = await mcpSearch('blog_search', q, sort || 'sim', 30, { source: 'naver_tab' });
+      if(nv && nv.source === 'naver_tab' && (nv.items || []).length){
+        return { total: (nv.items || []).length, scanned: 0, partial: false, nv: true, items: nv.items.slice(0, 40).map(mapItem) };
+      }
+      nvErr = 'api';
+    }catch(e){ nvErr = (e && e.message) || (e && e.code) || 'error'; }
+    var d = await mcpSearch('blog_search', q, sort || 'sim', 30, { scan: BLOG_SCAN, naver_only: true, title_has: q });
+    return { total: d.total || 0, scanned: d.scanned || 0, partial: !!d.partial, nv: false, nvFailed: true, items: (d.items || []).slice(0, 60).map(mapItem) };
   }
   async function newsFetchRaw(q, sort){
     var d = await mcpSearch('news_mentions', q, sort);
@@ -3723,16 +3735,16 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var t = blogNorm(n.title);
     return words.every(function(w){ return t.indexOf(w) >= 0; });
   }
-  function blogKeep(n, q){ return n.readable && blogTitleHas(n, q) && (!blogRecentOnly || blogIsRecent(n)); }
+  function blogKeep(n, q){ return n.readable && (n.nv || blogTitleHas(n, q)) && (!blogRecentOnly || blogIsRecent(n)); }
   function blogShown(items, q){ return items.filter(function(n){ return blogKeep(n, q); }).length; }
   function blogFilterBar(items, q, o){
     o = o || {};
-    var t = items.filter(function(n){ return n.readable && blogTitleHas(n, q); }).length;
+    var t = items.filter(function(n){ return n.readable && (n.nv || blogTitleHas(n, q)); }).length;
     var sortBtns = o.kwSort ? '<div style="margin:0 0 6px">' + ['sim', 'date'].map(function(sv){
       return '<button type="button" class="btn-sm' + (o.sort === sv ? ' primary' : '') + '" data-blogsort="' + sv + '" data-blogq="' + esc(q) + '" style="display:inline-block;width:auto;margin:0 6px 0 0;padding:6px 12px">' + (sv === 'date' ? '최신순' : '관련도순') + '</button>';
     }).join('') + '</div>' : '';
-    var nvLink = '<div style="margin:0 0 6px"><a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=' + encodeURIComponent(q) + '" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:700;color:var(--ink)">🔗 네이버 블로그 탭에서 보기 (관련도순)</a></div>';
-    return sortBtns + nvLink + '<div class="save-status" style="margin:0 0 6px">네이버 블로그만 · 제목에 "' + esc(q) + '" 있는 글 ' + t + '건 (' + (o.scanned ? '훑은 ' + o.scanned + '건 중' : '받은 ' + items.length + '건 중') + ')' + (o.partial ? ' · 일부 페이지는 못 받았어요' : '') +
+    var nvLink = '<div style="margin:0 0 6px"><a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=' + encodeURIComponent(q) + '" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:700;color:var(--ink)">🔗 네이버에서 직접 열기</a></div>';
+    return sortBtns + nvLink + '<div class="save-status" style="margin:0 0 6px">' + (o.nv ? '네이버 블로그 탭 화면 순서 그대로 · ' + t + '건' : (o.nvFailed ? '⚠️ 네이버 화면을 못 읽어서 검색 API 결과예요 · ' : '') + '네이버 블로그만 · 제목에 "' + esc(q) + '" 있는 글 ' + t + '건 (' + (o.scanned ? '훑은 ' + o.scanned + '건 중' : '받은 ' + items.length + '건 중') + ')') + (o.partial ? ' · 일부 페이지는 못 받았어요' : '') +
       ' · <button type="button" class="btn-link" data-blogrecent="1">' +
       (blogRecentOnly ? '최근 ' + BLOG_RECENT_MONTHS + '개월만 보는 중 (' + blogShown(items, q) + '건) · 전체 기간 보기' : '전체 기간 · 최근 ' + BLOG_RECENT_MONTHS + '개월만 보기') + '</button></div>';
   }
@@ -3833,9 +3845,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var st = blogKw[q];
     if(!st || !st.open) return '';
     var h = '<div class="kw-news" data-catkey="' + esc(cat || '') + '" style="width:100%;margin:2px 0 8px">';
-    var bo = { kwSort: true, sort: st.sort || 'sim', scanned: st.scanned, partial: st.partial };
+    var bo = { kwSort: true, sort: st.sort || 'sim', scanned: st.scanned, partial: st.partial, nv: st.nv, nvFailed: st.nvFailed };
     var sortOnly = blogFilterBar([], q, { kwSort: true, sort: st.sort || 'sim' }).split('</div>')[0] + '</div>';
-    if(st.loading) h += sortOnly + '<div class="save-status">' + esc(q) + ' 블로그 ' + BLOG_SCAN + '건 훑는 중… (3~5초)</div>';
+    if(st.loading) h += sortOnly + '<div class="save-status">' + esc(q) + ' 네이버 블로그 탭 읽는 중… (2~5초)</div>';
     else if(st.error) h += sortOnly + '<div class="save-status">' + esc(st.error) + '</div>';
     else if(!(st.items || []).length) h += sortOnly + '<div class="save-status">제목에 "' + esc(q) + '" 있는 네이버 블로그 글이 ' + (st.scanned ? '훑은 ' + st.scanned + '건' : '받은 글') + ' 안에 없어요. 다른 순서로 바꿔보세요.</div>';
     else h += '<div class="save-status" style="margin-bottom:2px">"' + esc(q) + '" 블로그 · 쓰고 싶은 글 옆 🎯</div>' + blogFilterBar(st.items, q, bo) +
@@ -3873,7 +3885,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     st.open = true; st.sort = sort; st.loading = true; st.error = ''; refreshAllKw();
     try{
       var r = await blogFetchRaw(q, sort);
-      st.total = r.total; st.scanned = r.scanned; st.partial = r.partial; st.items = r.items; st.fetched_at = Date.now(); st.fetched_sort = sort;
+      st.total = r.total; st.scanned = r.scanned; st.partial = r.partial; st.nv = r.nv; st.nvFailed = r.nvFailed; st.items = r.items.map(function(n){ n.nv = !!r.nv; return n; }); st.fetched_at = Date.now(); st.fetched_sort = sort;
     }catch(e){ st.error = newsErr(e); }
     st.loading = false; refreshAllKw();
   }
@@ -3961,12 +3973,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '<form class="kw-form" id="newsForm" style="margin-bottom:8px"><input id="newsInput" type="search" placeholder="검색어 직접 입력" value="' + esc(st.q) + '" autocomplete="off" enterkeyhint="search">' +
         '<select id="newsSort" aria-label="정렬" style="font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:0 8px"><option value="date"' + (st.sort === 'date' ? ' selected' : '') + '>최신순</option><option value="sim"' + (st.sort === 'sim' ? ' selected' : '') + '>' + (blog ? '관련도순' : '정확도순') + '</option></select>' +
         '<button type="submit"' + (st.loading ? ' disabled' : '') + '>조회</button></form>';
-    if(st.loading) h += '<div class="save-status">' + (blog ? '블로그 ' + BLOG_SCAN + '건 훑는 중… (3~5초)' : '뉴스 찾는 중…') + '</div>';
+    if(st.loading) h += '<div class="save-status">' + (blog ? '네이버 블로그 탭 읽는 중… (2~5초)' : '뉴스 찾는 중…') + '</div>';
     else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
     else if(st.fetched_at && !(st.items || []).length) h += '<div class="save-status">' + (blog ? '제목에 "' + esc(st.q) + '" 있는 네이버 블로그 글이 ' + (st.scanned ? '훑은 ' + st.scanned + '건' : '받은 글') + ' 안에 없어요. 정렬을 바꿔보세요.' : '검색 결과가 없어요.') + '</div>';
     else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요.' + (blog ? ' 다른 블로거들이 이 주제를 어떻게 쓰는지 제목·요약으로 볼 수 있어요.' : ' 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.') + '</div>';
     else if(blog){
-      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '관련도순') + ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + (st.scanned || st.items.length) + '건 훑음 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>' + blogFilterBar(st.items, st.q, { scanned: st.scanned, partial: st.partial });
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '관련도순') + (st.nv ? ' · ' : ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + (st.scanned || st.items.length) + '건 훑음 · ') + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>' + blogFilterBar(st.items, st.q, { scanned: st.scanned, partial: st.partial, nv: st.nv, nvFailed: st.nvFailed });
       h += blogListHtml(st.items, function(i){ return 'data-blogmk="' + i + '"'; }, 'cb|' + cat + '|', st.q);
     }else{
       h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
@@ -3982,7 +3994,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     renderNews();
     try{
       var r = blog ? await blogFetchRaw(q, st.sort) : await newsFetchRaw(q, st.sort);
-      st.outlet_count = r.outlet_count; st.total = r.total; st.scanned = r.scanned; st.partial = r.partial; st.fetched_at = Date.now(); st.items = r.items;
+      st.outlet_count = r.outlet_count; st.total = r.total; st.scanned = r.scanned; st.partial = r.partial; st.nv = r.nv; st.nvFailed = r.nvFailed; st.fetched_at = Date.now(); st.items = blog ? r.items.map(function(n){ n.nv = !!r.nv; return n; }) : r.items;
     }catch(e){ st.error = newsErr(e); }
     st.loading = false;
     renderNews();
