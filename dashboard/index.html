@@ -4005,7 +4005,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      키워드마다 검색량·뉴스·블로그 조회(토큰 0)와 주제 선정(자료 조사 전 카드, 토큰 0) 버튼을 붙이고,
      핸드폰·OTT 카드 초안 프롬프트에 [피클플러스 정보]로 가격·프로모션을 넣는다. 메일의 검색량은 피클이 밝힌 숫자라 글에 쓰지 않는다.
      14일이 지난 브리핑은 프롬프트에 넣지 않는다(근거 없는 판단값). 월·목 추천 키워드 루틴도 이 문서의 키워드를 핸드폰·OTT 후보로 쓴다. */
-  var pickleBrief = null, pickleParsing = false, pickleEditOpen = false, PICKLE_STALE_DAYS = 14;
+  var pickleBrief = null, pickleParsing = false, pickleEditOpen = false, pickleRawOpen = false, PICKLE_STALE_DAYS = 14;
   var PICKLE_CATS = { phone: 1, ott: 1 };
   function pickleAge(b){ var n = daysUntil(b && b.date); return n === null ? 999 : -n; }
   function pickleOf(list, cat){ return (list || []).filter(function(x){ return x && x.cat === cat; }); }
@@ -4120,17 +4120,26 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
           b.tips.map(function(t){ return '<div class="chk"><span class="tx">' + linkify(t) + '</span></div>'; }).join('') + '</div></details>';
       }
       if(!h) h = '<div class="save-status">이 탭에 해당하는 내용이 메일에 없었어요.</div>';
+      // 메일 하나가 핸드폰·OTT 두 탭에 나뉘어 보이므로, 다른 탭 몫이 있으면 알려준다 (2026-10-02 르나 요청: 붙여넣은 내용 전체 확인)
+      var other = cat === 'phone' ? 'ott' : 'phone';
+      var on = pickleOf(b.promos, other).length + pickleOf(b.keywords, other).length + pickleOf(b.issues, other).length + (other === 'ott' ? (b.titles || []).length : 0);
+      if(on) h += '<div class="save-status" style="margin-top:8px">이 메일의 ' + (other === 'ott' ? 'OTT·구독 서비스' : '핸드폰') + ' 몫 ' + on + '건은 ' + (other === 'ott' ? 'OTT' : '핸드폰') + ' 탭에 있어요.</div>';
+      if(b.raw) h += '<details class="ref-panel" id="pickleRawView" style="margin-top:10px;padding-top:10px"' + (pickleRawOpen ? ' open' : '') + '><summary>붙여넣은 메일 원문 전체 보기 (' + b.date + ')</summary>' +
+        '<div class="log" style="color:var(--ink);font-size:13px">' + linkify(b.raw) + '</div></details>';
     }
     var open = pickleEditOpen || !b || pickleParsing;
     h += '<div class="draft-btns" style="margin-top:10px">' + (b && !pickleParsing ? '<button type="button" class="btn-sm" id="pickleToggle">' + (open ? '붙여넣기 닫기' : '새 메일 붙여넣기') + '</button>' : '') + '</div>';
     if(open){
-      h += '<textarea class="rev-ta" id="pickleRaw" style="margin-top:8px;min-height:120px" placeholder="피클플러스 파트너 메일 본문을 그대로 붙여넣으세요 (프로모션·이슈·추천 키워드·가격·꿀팁)"' + (pickleParsing ? ' readonly' : '') + '>' + esc(draft) + '</textarea>' +
+      h += '<textarea class="rev-ta" id="pickleRaw" style="margin-top:8px;min-height:240px;max-height:70vh" placeholder="피클플러스 파트너 메일 본문을 그대로 붙여넣으세요 (프로모션·이슈·추천 키워드·가격·꿀팁)"' + (pickleParsing ? ' readonly' : '') + '>' + esc(draft) + '</textarea>' +
         '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="pickleParse"' + (pickleParsing ? ' disabled' : '') + '>' + (pickleParsing ? '정리 중… (10~20초)' : '⚡ 정리하기') + '</button>' +
         '<span class="save-status">핸드폰·OTT 탭에 나눠 보여주고, 두 탭 카드 초안에 가격이 들어가요</span></div>';
     }
     box.innerHTML = h;
     fillInlineKw(box);
+    var rta = document.getElementById('pickleRaw'); if(rta) growPickleRaw(rta);
   }
+  // 붙여넣은 글이 위쪽 몇 줄만 보이지 않게 내용 길이만큼 늘린다(화면 70%까지, 그 이상은 칸 안에서 스크롤)
+  function growPickleRaw(ta){ ta.style.height = 'auto'; ta.style.height = Math.max(240, ta.scrollHeight + 4) + 'px'; }
   async function makePickleCard(kw, cat){
     if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
     if(!PICKLE_CATS[cat]) return;
@@ -4170,6 +4179,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '- 주제와 관련 없는 줄은 무시해. 관련 줄이 없으면 피클플러스 얘기를 억지로 넣지 마.'
     ]).filter(Boolean).join('\n');
   }
+  document.getElementById('pickleBox').addEventListener('input', function(e){ if(e.target.id === 'pickleRaw') growPickleRaw(e.target); });
+  document.getElementById('pickleBox').addEventListener('toggle', function(e){ if(e.target.id === 'pickleRawView') pickleRawOpen = e.target.open; }, true);
   document.getElementById('pickleBox').addEventListener('click', function(e){
     if(e.target.closest('#pickleToggle')){ var ta = document.getElementById('pickleRaw'); var keep = ta ? ta.value : ''; pickleEditOpen = !pickleEditOpen; renderPickle(keep); return; }
     if(e.target.closest('#pickleParse')){ parsePickle(); return; }
