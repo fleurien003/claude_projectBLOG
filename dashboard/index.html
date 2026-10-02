@@ -55,6 +55,7 @@
     --shadow: 0 2px 12px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box;}
+  html, input, select, textarea{ accent-color:#ffb0b0; }   /* 달력·드롭다운 선택 강조색 (2026-10-01 르나 요청) */
   body{ background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Segoe UI",sans-serif; }
   .wrap{ max-width:760px; margin:0 auto; padding:20px 16px 56px; }
   header.top{ margin-bottom:18px; }
@@ -207,6 +208,7 @@
   .stat .v{ font-size:20px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums; }
   .stat .v small{ font-size:12px; font-weight:700; color:var(--sub); margin-left:2px; }
   .stat.hot .v{ color:var(--accent); }
+  .stat .acc{ font-size:11.5px; font-weight:700; color:var(--sub); margin-top:2px; font-variant-numeric:tabular-nums; }
   @media (max-width:520px){ .stats{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
   .toolbar{ display:flex; gap:8px; align-items:center; margin:14px 0 0; }
@@ -224,7 +226,7 @@
   .st-visited{ background:var(--chip-celeb); color:var(--chip-celeb-ink); }
   .st-drafted{ background:var(--chip-ott); color:var(--chip-ott-ink); }
   .st-posted{ background:var(--confirmed); color:var(--confirmed-ink); }
-  .st-dropped{ background:var(--muted); color:var(--muted-ink); }
+  .st-dropped, .st-closed{ background:var(--muted); color:var(--muted-ink); }
   .dday{ font-size:11px; font-weight:800; padding:4px 8px; border-radius:8px; background:var(--muted); color:var(--muted-ink); font-variant-numeric:tabular-nums; }
   .dday.urgent{ background:var(--danger); color:var(--danger-ink); }
   .dday.soon{ background:var(--requested); color:var(--requested-ink); }
@@ -253,6 +255,8 @@
   .f textarea{ resize:vertical; line-height:1.6; min-height:72px; }
   .f input:focus, .f textarea:focus, .d-status select:focus, .search:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
   .f .row{ display:flex; gap:6px; }
+  .f .chk-inline{ display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:12.5px; font-weight:700; color:var(--ink); }
+  .f .chk-inline input{ width:auto; margin:0; }
   .f .row input{ min-width:0; }
   .f .help{ font-size:11.5px; color:var(--sub); margin-top:4px; line-height:1.5; }
   .inline-link{ font-size:12px; color:var(--sub); text-decoration:none; border:1px solid var(--line); padding:5px 10px; border-radius:8px; }
@@ -315,6 +319,28 @@
   .tpl-item summary .meta-s{ font-size:11.5px; font-weight:600; color:var(--sub); }
   .tpl-item .inner{ padding:0 14px 14px; }
   .tpl-item textarea{ width:100%; min-height:44vh; font:inherit; font-size:13.5px; line-height:1.7; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; resize:vertical; }
+  /* 내 정보 (쓰는 제품 · 다녀온 여행) */
+  .f select{ width:100%; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; }
+  .f select:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .addbox select{ flex:1 1 160px; min-width:0; font:inherit; font-size:14px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .link-row{ cursor:default; }
+  .link-row a{ color:inherit; text-decoration:none; }
+  /* 접었다 펴는 묶음 */
+  .fold{ background:var(--card); border:1px solid var(--line); border-radius:14px; margin:0 0 12px; box-shadow:var(--shadow); }
+  .fold > summary{ cursor:pointer; padding:12px 14px; font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:8px; list-style:none; }
+  .fold > summary::-webkit-details-marker{ display:none; }
+  .fold > summary::after{ content:'▸'; color:var(--sub); margin-left:auto; padding-left:8px; }
+  .fold[open] > summary::after{ content:'▾'; }
+  .fold > .inner{ padding:0 14px 14px; }
+  .fold .inner .sec-head:first-child{ margin-top:2px; }
+  .pick-row{ display:flex; gap:6px; align-items:stretch; }
+  .pick-row .chk{ flex:1; min-width:0; }
+  .pick-row .btn-sm{ flex:none; align-self:center; }
+  .card-x{ border:none; background:none; color:var(--sub); font-size:17px; line-height:1; cursor:pointer; padding:2px 4px; }
+  .card-x:hover{ color:var(--danger-ink); }
+  .me-row{ margin-bottom:10px; }
+  .me-row .c-actions{ margin-top:8px; justify-content:flex-end; }
+  @media (max-width:520px){ .seg button{ font-size:12.5px; padding:10px 4px; gap:3px; } }
 </style>
 
 <div class="wrap" id="mainView">
@@ -328,6 +354,7 @@
     <button type="button" data-sec="home" class="active">🏠 홈</button>
     <button type="button" data-sec="feed">🔥 TIDINGS</button>
     <button type="button" data-sec="camp">📝 EL.LIGHT <span class="count" id="campCount" hidden></span></button>
+    <button type="button" data-sec="me">👤 내 정보</button>
   </nav>
 
   <div class="kwbox">
@@ -342,26 +369,55 @@
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
+    <div class="draft-btns" style="margin:0 0 8px"><button type="button" class="btn-sm" id="detectBtn">📮 발행 확인</button><span class="save-status" id="detectState">내 블로그 최근 글과 맞춰서 발행한 글을 자동으로 기록해요</span></div>
     <div class="sec-list" id="homeList"></div>
-    <div class="sec-head"><span>📈 검색 순위</span><span class="save-status" id="homeRankState">발행된 글이 없어 아직 순위를 볼 수 없어요</span></div>
-    <div class="sec-list" id="homeRank"></div>
-    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">검색량 많고 덜 붐비는 순</span></div>
+    <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">카테고리별</span></div>
     <div class="chk-list" id="homeKw"></div>
-    <div class="sec-head"><span>📮 최근 발행</span><span class="save-status">블로그에서 자동으로 가져와요</span></div>
-    <div class="sec-list" id="homePosted"></div>
   </section>
 
   <section id="feedSection" hidden>
+    <details class="fold" id="toolsFold">
+      <summary><span>📡 확인할 채널 · 📎 쓸 링크</span><span class="save-status" id="toolsHint"></span></summary>
+      <div class="inner">
+    <div id="homeChannels"></div>
+    <div class="sec-head"><span>📎 쓸 링크</span><span class="save-status" id="linkCount"></span></div>
+    <form class="panel addbox" id="linkForm">
+      <div class="row"><input id="linkUrl" type="url" placeholder="쓰고 싶은 게시물 링크 (https://www.instagram.com/p/…)" required autocomplete="off"></div>
+      <div class="row" style="margin-top:8px">
+        <select id="linkCat" aria-label="카테고리">
+          <option>연예인·명품</option><option>패션 코디</option><option>명소·축제</option><option>코스트코·다이소</option>
+          <option>가전·가구</option><option>핸드폰</option><option>여행</option><option>OTT</option><option>컬리</option>
+        </select>
+        <button type="submit" class="btn-add">추가</button>
+      </div>
+      <textarea id="linkMemo" class="rev-ta" style="margin-top:8px;min-height:56px" placeholder="캡션이나 메모 (링크가 안 읽히면 캡션 글을 여기 붙여넣어 주세요)"></textarea>
+      <div class="help">추가하면 아래 카테고리에 카드가 바로 만들어져요. 캡션을 붙여넣으면 카드 내용까지 바로 채우고, 링크만 넣으면 Claude에게 "쓸 링크 봐줘"라고 할 때 채워요.</div>
+    </form>
+    <div class="sec-list" id="linkList"></div>
+      </div>
+    </details>
     <div class="tabs" id="tabs">
       <button class="tab active" data-cat="all">전체</button>
-      <button class="tab" data-cat="travel_issue">✈️ 여행이슈</button>
-      <button class="tab" data-cat="travel_spot">🗺️ 여행명소</button>
-      <button class="tab" data-cat="celeb_issue">💄 연예인이슈</button>
-      <button class="tab" data-cat="celeb_fashion">👗 연예인패션</button>
-      <button class="tab" data-cat="finance">💰 재테크</button>
-      <button class="tab" data-cat="ott">🎬 OTT</button>
-      <button class="tab" data-cat="kurly_pick">🛒 컬리추천템</button>
+      <button class="tab" data-cat="celeb_fashion" title="연예인·명품" aria-label="연예인·명품">👜</button>
+      <button class="tab" data-cat="fashion_coord" title="패션 코디" aria-label="패션 코디">🧥</button>
+      <button class="tab" data-cat="travel_spot" title="명소·축제" aria-label="명소·축제">🗺️</button>
+      <button class="tab" data-cat="costco_daiso" title="코스트코·다이소" aria-label="코스트코·다이소">🛍️</button>
+      <button class="tab" data-cat="appliance" title="가전·가구" aria-label="가전·가구">🏠</button>
+      <button class="tab" data-cat="phone" title="핸드폰" aria-label="핸드폰">📱</button>
+      <button class="tab" data-cat="travel_issue" title="여행" aria-label="여행">✈️</button>
+      <button class="tab" data-cat="ott" title="OTT" aria-label="OTT">🎬</button>
+      <button class="tab" data-cat="kurly_pick" title="컬리" aria-label="컬리">🛒</button>
+      <button class="tab" data-cat="done" title="블로그 완료" aria-label="블로그 완료">✅</button>
     </div>
+    <div class="links" id="cpaBar" hidden></div>
+    <details class="fold" id="celebFold" hidden>
+      <summary><span>⭐ 연예인 이름 랭킹</span><span class="save-status" id="celebState"></span></summary>
+      <div class="inner" id="homeCelebs"></div>
+    </details>
+    <details class="fold" id="newsFold" hidden>
+      <summary><span id="newsTitle">📰 카테고리 뉴스</span><span class="save-status" id="newsState"></span></summary>
+      <div class="inner" id="newsBox"></div>
+    </details>
     <div id="feed">
       <div class="empty">불러오는 중...</div>
     </div>
@@ -379,10 +435,35 @@
         <input id="addLink" type="url" placeholder="캠페인 링크 붙여넣기 (https://…)" required autocomplete="off">
         <button type="submit" class="btn-add">추가</button>
       </div>
-      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월·목 오후 2시 30분에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
+      <div class="help">링크만 넣으면 돼요. 업체명·플랫폼·제공 내역·마감일 같은 기본 정보와 프롬프트는 월~목 오전 10시에 자동화가 캠페인 페이지와 네이버 지역검색·블로그 후기·키워드 검색량을 확인해서 채워요.</div>
     </form>
+    <div class="tpl-row" id="campFilters" style="margin:10px 0 0"></div>
     <div class="tabs" id="campTabs"></div>
     <div id="campList"><div class="empty">불러오는 중...</div></div>
+  </section>
+
+  <section id="meSection" hidden>
+    <div class="auto-line" style="margin:0 0 4px">여기 적어두면 TIDINGS 초안을 쓸 때 자동으로 반영돼요. 신제품 글은 "내가 쓰는 제품과 비교"로, 여행 글은 "다녀온 곳의 내 경험"으로 이어 써요. 적지 않은 제품이나 여행은 써본 것처럼, 다녀온 것처럼 쓰지 않아요.</div>
+    <div class="save-status" id="meState"></div>
+    <div class="sec-head"><span>📱 내가 쓰는 제품</span><span class="save-status" id="gearCount"></span></div>
+    <div id="gearList"></div>
+    <button type="button" class="btn-add more" id="gearAdd">+ 제품 추가</button>
+    <div class="sec-head"><span>✈️ 다녀온 여행</span><span class="save-status" id="tripCount"></span></div>
+    <div id="tripList"></div>
+    <button type="button" class="btn-add more" id="tripAdd">+ 여행 추가</button>
+    <div class="sec-head"><span>📡 확인할 채널</span></div>
+    <div class="auto-line" style="margin:0 0 6px">주제를 찾을 때 훑어볼 인스타 계정이에요. 홈 화면의 "전체 열기" 버튼이 여기 적힌 주소를 한꺼번에 열어요.</div>
+    <details class="fold" id="chanFold">
+      <summary><span>등록된 채널</span><span class="save-status" id="chanCount"></span></summary>
+      <div class="inner"><div id="chanList"></div></div>
+    </details>
+    <button type="button" class="btn-add more" id="chanAdd">+ 채널 추가</button>
+    <div class="sec-head"><span>⭐ 연예인 후보 명단</span><span class="save-status" id="celebCount"></span></div>
+    <div class="auto-line" style="margin:0 0 6px">홈의 "연예인 이름 랭킹"이 이 명단을 검색량 순으로 세워요. 이름은 쉼표로 여러 명을 한 번에 넣을 수 있어요.</div>
+    <form class="panel addbox" id="celebForm">
+      <div class="row"><input id="celebInput" type="text" placeholder="이름 (예: 손예진, 아이유)" autocomplete="off"><button type="submit" class="btn-add">추가</button></div>
+    </form>
+    <div class="links" id="celebChips"></div>
   </section>
 </div>
 
@@ -403,10 +484,11 @@
     <textarea class="rev-ta" id="feedRevise" placeholder="예) 도입부를 더 짧게&#10;②번 내용이 어려워요, 쉽게 풀어줘&#10;마무리에 댓글 유도 한 줄 넣어줘"></textarea>
     <div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="feedReviseBtn">✏️ 수정 반영</button><span class="save-status" id="feedReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>
     <div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="feedPostState"></span></div>
+    <div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm good" id="feedPostedBtn">✓ 블로그 완료</button><span class="save-status">주소 없이도 완료로 기록해요</span></div>
     <input id="feedPostedUrl" class="search" type="url" placeholder="블로그에 올린 뒤 글 주소를 붙여넣어 주세요 (https://blog.naver.com/…)" autocomplete="off">
     <div class="save-status" style="margin-top:6px">주소를 넣어두면 이 주제가 실제로 검색에 걸리는지 매주 확인해서 알려드려요.</div>
     <details class="ref-panel" open>
-      <summary>📋 참고 정보 (강조/반전 포인트, 이미지 소스, 링크)</summary>
+      <summary>📋 참고 정보 (강조/반전 포인트, 이미지 소스, 링크, 르나 경험)</summary>
       <div id="editorRef"></div>
     </details>
   </div>
@@ -433,14 +515,47 @@
 <script>
 (function(){
   var CAT_META = {
-    travel_issue:  { label:"✈️ 여행이슈",   chip:"chip-travel"  },
-    travel_spot:   { label:"🗺️ 여행명소",   chip:"chip-spot"    },
-    celeb_issue:   { label:"💄 연예인이슈", chip:"chip-celeb"   },
-    celeb_fashion: { label:"👗 연예인패션", chip:"chip-fashion" },
-    finance:       { label:"💰 재테크",     chip:"chip-finance" },
-    ott:           { label:"🎬 OTT",        chip:"chip-ott"     },
-    kurly_pick:    { label:"🛒 컬리추천템", chip:"chip-kurly"   }
+    celeb_fashion: { label:"👜 연예인·명품",     chip:"chip-celeb"   },
+    fashion_coord: { label:"🧥 패션 코디",       chip:"chip-fashion" },
+    travel_spot:   { label:"🗺️ 명소·축제",       chip:"chip-spot"    },
+    costco_daiso:  { label:"🛍️ 코스트코·다이소", chip:"chip-kurly"   },
+    appliance:     { label:"🏠 가전·가구",       chip:"chip-travel"  },
+    phone:         { label:"📱 핸드폰",          chip:"chip-ott"     },
+    travel_issue:  { label:"✈️ 여행",            chip:"chip-travel"  },
+    ott:           { label:"🎬 OTT",             chip:"chip-ott"     },
+    kurly_pick:    { label:"🛒 컬리",            chip:"chip-kurly"   },
+    /* 옛 카테고리: 탭에서는 뺐고, 이미 만든 카드가 깨지지 않게 이름만 남긴다 */
+    celeb_issue:   { label:"💄 연예인이슈(옛)",  chip:"chip-celeb"   },
+    finance:       { label:"💰 재테크(옛)",      chip:"chip-finance" }
   };
+  /* 카테고리별 연결 사이트 (은아님이 알려준 주소). 애드포스트 카테고리 중 코스트코·다이소는 인스타 태그 검색.
+     확인할 채널에 카테고리를 정해 등록하면 그 탭에도 채널 버튼이 붙는다 (updateCpaBar). */
+  var IG_COSTCO = 'https://www.instagram.com/explore/search/keyword/?q=%23%EC%BD%94%EC%8A%A4%ED%8A%B8%EC%BD%94';
+  var IG_DAISO  = 'https://www.instagram.com/explore/search/keyword/?q=%23%EB%8B%A4%EC%9D%B4%EC%86%8C';
+  var BRANDCONNECT = 'https://brandconnect.naver.com/911666670459104/affiliate/products';
+  var PICKLE = 'https://pickle.plus/partners/dashboard';
+  var MRT = 'https://partner.myrealtrip.com/welcome/marketing_partner';
+  var CREATOR_ADVISOR = 'https://creator-advisor.naver.com/naver_blog/fleurien003/trends#main-inflow-trend';   // 모든 탭(전체·카테고리·완료)에 붙는 버튼 (2026-10-01 르나 요청)
+  var CPA_LINKS = {
+    appliance:    [{ label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
+    phone:        [{ label:'피클플러스', url:PICKLE }, { label:'네이버 브랜드커넥트', url:BRANDCONNECT }],
+    travel_issue: [{ label:'마이리얼트립 파트너', url:MRT }],
+    travel_spot:  [{ label:'마이리얼트립 파트너', url:MRT }],
+    ott:          [{ label:'피클플러스', url:PICKLE }],
+    kurly_pick:   [{ label:'컬리 큐레이터', url:'https://lounge.kurly.com/curator-program/main' }],
+    costco_daiso: [{ icon:'📷', label:'코스트코 인스타 태그', url:IG_COSTCO }, { icon:'📷', label:'다이소 인스타 태그', url:IG_DAISO }]
+  };
+  function updateCpaBar(){
+    var cb = document.getElementById('cpaBar');
+    if(!cb) return;
+    var links = (CPA_LINKS[currentFilter] || []).map(function(l){ return { icon: l.icon || '🔗', label: l.label, url: l.url }; });
+    chanList.forEach(function(c){
+      if(safeUrl(c.url) && c.cat && LINK_CAT_KEY[c.cat] === currentFilter) links.push({ icon:'📡', label: c.name || hostOf(c.url), url: safeUrl(c.url) });
+    });
+    links.push({ icon:'📊', label:'creator-advisor', url: CREATOR_ADVISOR });
+    cb.hidden = !links.length;
+    cb.innerHTML = links.map(function(l){ return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + l.icon + ' ' + esc(l.label) + '</a>'; }).join('');
+  }
   var STATUS_META = {
     pending:       { label:"확인 대기중" },
     confirmed:     { label:"✅ 컨펌됨" },
@@ -455,7 +570,8 @@
     { key:'visited', label:'글쓰기 대기', statuses:['방문 완료','네이버 리뷰 작성'] },
     { key:'drafted', label:'초안 준비', statuses:['글작성완료'] },
     { key:'posted',  label:'포스팅 완료', statuses:['블로그 포스팅 완료','클립제작 완료','인스타그램 완료'] },
-    { key:'dropped', label:'진행안함',  statuses:['진행안함'] }
+    { key:'dropped', label:'진행안함',  statuses:['진행안함'] },
+    { key:'closed',  label:'종료',     statuses:['종료'] }
   ];
   var STAGE_OF = {};
   CAMP_STAGES.forEach(function(s){ s.statuses.forEach(function(v){ STAGE_OF[v] = s.key; }); });
@@ -538,6 +654,12 @@
 
   function render(){
     var feed = document.getElementById('feed');
+    var cf = document.getElementById('celebFold');
+    if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
+    var nf = document.getElementById('newsFold');
+    if(nf) nf.hidden = !CAT_META[currentFilter] || !NEWS_DEFAULT_Q[currentFilter];
+    renderNews();
+    updateCpaBar();
     if(!itemsLoaded) return;
     if(!allItems.length){
       feed.innerHTML = '<div class="empty">아직 등록된 트렌드 후보가 없어요.<br>매일 아침 자동으로 채워져요 🌤️</div>';
@@ -545,12 +667,14 @@
     }
     var byDate = {};
     allItems.forEach(function(it){
-      if(currentFilter !== 'all' && it.category_key !== currentFilter) return;
+      var done = it.status === 'posted';
+      if(currentFilter === 'done'){ if(!done) return; }
+      else{ if(done) return; if(currentFilter !== 'all' && it.category_key !== currentFilter) return; }
       (byDate[it.date] = byDate[it.date] || []).push(it);
     });
     var dates = Object.keys(byDate).sort().reverse();
     if(!dates.length){
-      feed.innerHTML = '<div class="empty">이 카테고리엔 아직 후보가 없어요.</div>';
+      feed.innerHTML = '<div class="empty">' + (currentFilter === 'done' ? '아직 완료한 글이 없어요.<br>카드의 ✓ 블로그 완료를 누르면 여기로 모여요.' : '이 카테고리엔 아직 후보가 없어요.') + '</div>';
       return;
     }
     var today = localToday();
@@ -602,7 +726,8 @@
       '<div class="card' + (isOld ? ' is-old' : '') + '" data-id="' + esc(it.id) + '">' +
         '<div class="card-top">' +
           '<span class="chip ' + meta.chip + '">' + meta.label + '</span>' +
-          '<span class="status-badge status-' + status + '">' + statusMeta.label + '</span>' +
+          '<span style="display:inline-flex;align-items:center;gap:8px"><span class="status-badge status-' + status + '">' + statusMeta.label + '</span>' +
+            '<button type="button" class="card-x" data-action="delete" title="삭제" aria-label="이 카드 삭제">✕</button></span>' +
         '</div>' +
         '<div class="topic">' + esc(it.topic) + '</div>' +
         (fresh ? '<div class="fresh">🕐 <b>' + esc(fresh) + '</b></div>' : '') +
@@ -612,8 +737,8 @@
         (it.category_key === 'kurly_pick' ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(it.kurly_action_note || '컬리 큐레이터 홈에서 이 제품 검색 → 링크 생성 후 블로그에 삽입하세요 (르나 로그인 필요, 자동 생성 불가)') + '</div>' : '') +
         (it.main_keyword ? '<div class="kw-res kw-res-embed" id="kwc-' + esc(it.id) + '" data-kw="' + esc(it.main_keyword) + '" hidden></div>' : '') +
         '<div class="links">' + links + '</div>' +
-        (status === 'confirmed' ?
-          '<div class="draft-note"><span class="status-txt">' + (it.draft_content ? '📝 초안 준비됨' : '✍️ 열어서 초안 쓰기') + '</span>' +
+        (status === 'confirmed' || status === 'posted' ?
+          '<div class="draft-note"><span class="status-txt">' + (status === 'posted' ? '📮 발행 완료' : (it.draft_content ? '📝 초안 준비됨' : '✍️ 열어서 초안 쓰기')) + '</span>' +
           '<button type="button" class="btn-open-editor" data-action="open-editor">✍️ ' + (it.draft_content ? '글 보기·수정' : '먼저 써보기') + '</button></div>'
           : '') +
         '<div class="actions">' +
@@ -621,6 +746,11 @@
             (status==='confirmed' ? '컨펌 완료' : '✍️ 이 주제로 글쓰기') + '</button>' +
           '<button class="btn btn-skip" data-action="skip" ' + (disabled?'disabled':'') + '>' +
             (isRefreshing ? '⏳ 새 주제 가져오는 중' : '🔄 다른 주제 가져오기') + '</button>' +
+        '</div>' +
+        '<div class="actions" style="margin-top:8px">' +
+          (status === 'posted'
+            ? '<button class="btn btn-skip" data-action="unpost">↩ 발행 취소</button>'
+            : '<button class="btn btn-skip" data-action="posted">✓ 블로그 완료</button>') +
         '</div>' +
       '</div>';
   }
@@ -636,6 +766,37 @@
 
     if(action === 'open-editor'){
       location.hash = 'draft/' + encodeURIComponent(id);
+      return;
+    }
+
+    if(action === 'delete'){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+      if(!(await ask('정말 삭제하실 건가요?\n\n' + (item.topic || '이 카드') + '\n\n삭제하면 되돌릴 수 없어요.', '삭제', true))) return;
+      try{
+        await db.doc('items/' + id).delete();
+        if(item.link_id){ try{ await db.doc('links/' + item.link_id).delete(); }catch(err){} }   // 링크로 만든 카드면 읽기 대기 목록에서도 뺀다
+        allItems = allItems.filter(function(i){ return i.id !== id; });
+        render(); renderHome();
+        toast('삭제했어요');
+      }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
+      return;
+    }
+
+    if(action === 'posted' || action === 'unpost'){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+      btn.disabled = true;
+      var patch = action === 'posted'
+        ? { status:'posted', posted_at: Date.now(), status_updated_at: Date.now() }
+        : { status: item.draft_content ? 'confirmed' : 'pending', posted_at: 0, status_updated_at: Date.now() };
+      try{
+        await db.doc('items/' + id).update(patch);
+        Object.assign(item, patch);
+        render(); renderHome();
+        toast(action === 'posted' ? '블로그 완료로 기록했어요 📮' : '발행 표시를 취소했어요');
+      }catch(err){
+        toast('저장에 실패했어요. 다시 시도해주세요.');
+        btn.disabled = false;
+      }
       return;
     }
 
@@ -683,13 +844,79 @@
     (item.image_links || []).forEach(function(im){
       if(im && im.url) linkHtml += '<a class="img-link" href="' + esc(im.url) + '" target="_blank" rel="noopener">' + esc(im.label || '🖼️ 이미지 소스') + '</a>';
     });
+    if(document.activeElement && document.activeElement.id === 'lenaNote') return;   // 메모 입력 중에는 다시 그리지 않는다
     refEl.innerHTML =
+      '<div class="draft-btns" style="margin:10px 0 0"><button type="button" class="btn-sm' + (refTab === 'info' ? ' primary' : '') + '" data-reftab="info">주제 정보</button>' +
+      '<button type="button" class="btn-sm' + (refTab === 'lena' ? ' primary' : '') + '" data-reftab="lena">👤 르나 경험</button></div>' +
+      (refTab === 'lena' ? lenaExpHtml(item) : refInfoHtml(item, linkHtml));
+  }
+  var refTab = 'info';
+  function relatedNewsHtml(item){
+    var rn = item.related_news;
+    var src = item.source_desc ? '<div class="field"><span class="label">' + (item.origin === 'blog' ? '원본 블로그 글' : '원본 뉴스') + '</span>' + esc(item.source_title) + (item.source_outlet ? ' <small>(' + esc(item.source_outlet) + ')</small>' : '') + '<br><small>' + esc(item.source_desc) + '</small></div>' : '';
+    var list = Array.isArray(rn)
+      ? (rn.length ? rn.map(function(n){ return '<div style="margin-bottom:4px">' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a>' : esc(n.title)) + ' <small>' + esc(n.outlet || '') + '</small></div>'; }).join('') : '<small>관련 뉴스를 찾지 못했어요.</small>')
+      : '<small>초안을 쓸 때 자동으로 찾아요. 지금 찾아두려면 아래 버튼을 누르세요.</small>';
+    return src + '<div class="field"><span class="label">관련 뉴스 (최대 3건 · 초안 근거)</span>' + list +
+      '<div class="draft-btns" style="margin-top:6px"><button type="button" class="btn-sm" id="relNewsBtn">🔎 ' + (Array.isArray(rn) ? '관련 뉴스 다시 찾기' : '관련 뉴스 찾기') + '</button><span class="save-status" id="relNewsState"></span></div></div>';
+  }
+  function refInfoHtml(item, linkHtml){
+    return '' +
       '<div class="field"><span class="label">강조 포인트</span>' + esc(item.emphasis || '') + '</div>' +
       '<div class="field"><span class="label">반전 포인트</span>' + esc(item.twist || '') + '</div>' +
       '<div class="title-bait">💬 ' + esc(item.title_bait || '') + '</div>' +
       (item.kurly_action_note ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(item.kurly_action_note) + '</div>' : '') +
-      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>';
+      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>' + relatedNewsHtml(item);
   }
+  /* 르나 경험 탭 — 내 정보 탭에 적어 둔 제품·여행 중 이 카드와 관련된 것 + 이 카드 전용 메모. 초안 프롬프트가 쓰는 것과 같은 기준이다. */
+  function lenaExpHtml(item){
+    var isTravel = /^travel/.test(item.category_key || '');
+    var hay = [item.topic, item.emphasis, item.twist, item.title_bait, item.main_keyword].join(' ');
+    var gear = isTravel ? [] : gearList.filter(function(g){ return String(g.name || '').trim(); });
+    var trips = tripList.filter(function(t){
+      var pl = String(t.place || '').trim();
+      return pl && (isTravel || hay.indexOf(pl) >= 0);
+    }).slice(0, 10);
+    var rows = [];
+    gear.forEach(function(g){
+      rows.push('<div class="field"><span class="label">쓰는 제품</span>' + esc([g.cat, g.name].filter(Boolean).join(': ')) +
+        (g.since ? ' (' + esc(clip(g.since, 30)) + ')' : '') + (g.note ? '<br><small>' + esc(clip(g.note, 300)) + '</small>' : '') + '</div>');
+    });
+    trips.forEach(function(t){
+      var head = [t.when, t.days, t.with].map(function(x){ return clip(x, 30); }).filter(Boolean).join(' · ');
+      rows.push('<div class="field"><span class="label">다녀온 여행</span><b>' + esc(clip(t.place, 30)) + '</b>' + (head ? ' · ' + esc(head) : '') +
+        (t.stay ? '<br><small>숙소·교통: ' + esc(clip(t.stay, 200)) + '</small>' : '') +
+        (t.spots ? '<br><small>가본 곳·먹은 것: ' + esc(clip(t.spots, 400)) + '</small>' : '') +
+        (t.tip ? '<br><small>팁·아쉬움·비용: ' + esc(clip(t.tip, 300)) + '</small>' : '') + '</div>');
+    });
+    return (rows.length ? rows.join('') : '<div class="save-status" style="margin-top:10px">이 카드와 관련해 내 정보 탭에 적어 둔 제품·여행이 없어요.</div>') +
+      '<div class="field"><span class="label">이 카드 메모 (내가 직접 겪은 것, 초안에 반영돼요)</span>' +
+      '<textarea class="rev-ta" id="lenaNote" placeholder="예) 내 아이폰16 배터리는 하루 반 가요&#10;괌은 2019년에 다녀왔고 호텔은 ○○였어요">' + esc(item.lena_note || '') + '</textarea>' +
+      '<div class="draft-btns" style="margin-top:6px"><button type="button" class="btn-sm primary" id="lenaNoteSave">저장</button><span class="save-status" id="lenaNoteState"></span></div></div>';
+  }
+  document.getElementById('editorRef').addEventListener('click', async function(e){
+    var tb = e.target.closest('[data-reftab]');
+    if(tb){ refTab = tb.dataset.reftab; if(feedItem) renderHeadAndRef(feedItem); return; }
+    if(e.target.id === 'relNewsBtn'){
+      var rs = document.getElementById('relNewsState');
+      if(!feedItem || !feedItem.id){ if(rs) rs.textContent = '아직 불러오는 중이에요 — 잠시 후 다시 눌러주세요'; return; }
+      if(!db){ if(rs) rs.textContent = 'claude.ai에서 대시보드를 열어야 쓸 수 있어요'; return; }
+      e.target.disabled = true; if(rs) rs.textContent = '찾는 중…';
+      try{ var got = await refreshRelatedNews(feedItem.id, db.doc('items/' + feedItem.id), feedItem, true); toast('관련 뉴스 ' + got.length + '건을 찾았어요 🔎'); }
+      catch(err){ if(rs) rs.textContent = newsErr(err); e.target.disabled = false; }
+      return;
+    }
+    if(e.target.id === 'lenaNoteSave'){
+      var ta = document.getElementById('lenaNote'), st = document.getElementById('lenaNoteState');
+      if(!db || !feedItem || !feedItem.id){ if(st) st.textContent = '지금은 저장할 수 없어요'; return; }
+      try{
+        await db.doc('items/' + feedItem.id).update({ lena_note: ta.value });
+        feedItem.lena_note = ta.value;
+        if(st) st.textContent = '저장됨';
+        toast('르나 경험 메모를 저장했어요');
+      }catch(err){ if(st) st.textContent = '저장하지 못했어요. 다시 시도해주세요.'; }
+    }
+  });
 
   async function copyText(ta){
     ta.select();
@@ -741,6 +968,8 @@
           autoWriteId = null;
           setTimeout(function(){ writeFeedDraft(id, docRef, null); }, 200);
         }
+        var pb = document.getElementById('feedPostedBtn');
+        if(pb){ pb.textContent = item.status === 'posted' ? '📮 블로그 완료됨' : '✓ 블로그 완료'; pb.disabled = item.status === 'posted'; }
         var wb = document.getElementById('feedWriteBtn');
         if(wb && !feedWriting){
           wb.textContent = item.draft_content ? '↻ 다시 쓰기' : '✍️ 초안 쓰기';
@@ -794,6 +1023,11 @@
       writeFeedDraft(id, docRef, null);
     };
     document.getElementById('feedStopBtn').onclick = function(){ if(feedWriting) feedWriting.abort(); };
+    document.getElementById('feedPostedBtn').onclick = function(){
+      docRef.update({ status:'posted', posted_at: Date.now(), status_updated_at: Date.now() })
+        .then(function(){ toast('블로그 완료로 기록했어요 📮'); })
+        .catch(function(){ toast('저장에 실패했어요. 다시 시도해주세요.'); });
+    };
     document.getElementById('feedReviseBtn').onclick = function(){
       var box = document.getElementById('feedRevise');
       var want = box ? box.value.trim() : '';
@@ -810,9 +1044,10 @@
      홈피드 글에 붙이면 서로 어긋난다. 카테고리마다 다른 "소주제 뼈대"만 뽑아 쓴다. */
   var FEED_TPL = {
     celeb_fashion: 'h_celeb', celeb_issue: 'h_celeb',
-    finance: 'h_finance', ott: 'h_ott',
+    finance: 'h_finance', ott: 'h_ott', phone: 'h_finance',
     travel_issue: 'h_travel', travel_spot: 'h_travel',
-    kurly_pick: 'h_kurly'   // 아직 없음. 없으면 이 줄은 그냥 건너뛴다
+    kurly_pick: 'h_kurly', costco_daiso: 'h_kurly'
+    // fashion_coord 는 아직 전용 템플릿이 없다 (근거 없는 판단값 피하려고 비워둠) — 없으면 feedSkeleton()이 그냥 건너뛴다
   };
 
   function feedSkeleton(it){
@@ -831,16 +1066,18 @@
      "키워드 맨 앞 + 훅"은 연예에만 맞았다. 여행명소는 연도가, 컬리는 판매처가 먼저 온다.
      근거와 원자료는 docs/06_제목_첫단어_키워드_검증.md */
   var TITLE_RULE = {
-    celeb: '**메인 키워드(띄운 형태)로 시작하고 바로 뒤에 훅**을 붙여. 키워드 앞에 다른 말을 두지 마. 예) "고현정 향수 뭐 쓰나 했더니.. 크리드 러브 인 블랙", "조현아 다이어트 어떻게 뺀거야..? 10kg 감량 식단부터"',
+    celeb_issue: '**메인 키워드(띄운 형태)로 시작하고 바로 뒤에 훅**을 붙여. 키워드 앞에 다른 말을 두지 마. 예) "고현정 향수 뭐 쓰나 했더니.. 크리드 러브 인 블랙", "조현아 다이어트 어떻게 뺀거야..? 10kg 감량 식단부터"',
+    celeb_fashion: '**키워드를 제목 맨 앞에 두지 마.** 2026-10-01 확정 — 아래 4종 훅 중 재료에 맞는 것 하나로 건다(키워드는 제목 어딘가에만 있으면 됨, 위치 무관): ① 개인 캐릭터 연결(그 인물 고유 밈·유행어에 아이템을 갖다붙임) ② 추측·떡밥("~되는 거 아니야?") ③ 라이벌·비교 구도("○○도 긴장할 자리", "16살 차이인데 20대한테 안 밀린") ④ 반전·호불호("별거 없는데 따라입고싶은", 비판 프레이밍 허용). 본문 톤도 보도체 금지, 친구에게 수다 떠는 말투("~거든요" "~더라고요").',
     ott: '**작품명으로 시작**해. 앞에 "넷플릭스"·"디즈니+" 같은 플랫폼명은 붙여도 돼. 그 뒤에 궁금증 키워드(기본정보·출연진·몇부작·수위·원작·결말 중 [주제 정보]에 재료가 있는 것)를 나열해. 예) "넷플릭스 스캔들 기본정보 출연진 원작 실제 수위까지"',
     finance: '**제도 이름으로 시작**해(앞에 "2026년"은 붙여도 돼). 제도명 뒤에 조건·한도·금리 같은 궁금증, 그 뒤에 [주제 정보]에 있는 숫자나 "우리 집은?" 같은 내 상황 질문을 붙여. 예) "상속세 면제한도 10억, 우리 집에 그대로 적용되는지 확인할 3가지"',
     travel_issue: '**연휴명 + 행동으로 시작**해(앞에 "2026"·"9월"은 붙여도 돼). 뒤에 개수나 일정을 붙여. 예) "추석 연휴 국내여행 추천｜1박2일로 가고 싶은 가을 여행지 5곳"',
     travel_spot: '**"2026 + 명소명 + 단풍·축제"로 시작**해. 연도가 맨 앞이야. 뒤에 시기·절정·주차 같은 정보를 나열해. 예) "2026 설악산 단풍시기 언제? 첫단풍·절정·주차 총정리"',
-    kurly_pick: '**"컬리 + 품목"으로 시작**해(판매처가 맨 앞이야). 뒤에 가격대·추천을 붙여. 예) "컬리 추석선물세트 추천｜가격대별로 골라봤어요"'
+    kurly_pick: '**"컬리 + 품목"으로 시작**해(판매처가 맨 앞이야). 뒤에 가격대·추천을 붙여. 예) "컬리 추석선물세트 추천｜가격대별로 골라봤어요"',
+    costco_daiso: '**마트명(코스트코·다이소 등) + 품목·할인으로 시작**해(키워드 자체에 마트명이 들어 있어). 뒤에 마감임박·반전 훅을 붙여. 예) "코스트코 할인 이번 주 안 사면 후회하는 이유"'
   };
   function titleRule(it){
     var k = it.category_key || '';
-    return TITLE_RULE[/^celeb/.test(k) ? 'celeb' : k] || '';
+    return TITLE_RULE[k] || '';
   }
 
   /* 제목 훅 — 2026-09-24 르나 승인. 키워드 자리는 위 공식, 그 뒤에 훅을 하나만 붙인다.
@@ -890,8 +1127,9 @@
       '- 소주제 줄 앞에는 빈 줄 세 개, 소주제 줄과 첫 문단 사이에는 빈 줄 한 개.',
       '- 문장 하나의 길이는 공백 포함 **45~90자**가 기본이야. 20자짜리 단문만 나열하면 르나 글이 아니게 돼.',
       '- "~는데요", "~고요", "~다 보니", "~라서", "~지만" 같은 연결어미로 문장을 이어 호흡을 길게 가져가.',
-      '- 르나는 말하듯이 써. 종결어미는 "-더라고요 / -했어요 / -거든요 / -거예요 / -것 같아요 / -고요"를 섞어 써. **"~거예요"와 "~것 같아요"를 "~겠죠"로 바꾸지 마.** 르나가 실제로 쓰는 말이야.',
-      '- 고칠 건 네 가지뿐이야. **"완전히/매우/상당히/굉장히" → "완전/진짜/너무"**, **"~합니다/~됩니다" → "~해요/~돼요"**, **"-겠어요" → "-겠죠"**, 늘어진 번역투는 풀어 쓰기.',
+      '- 르나는 말하듯이 써 (2026-10-01 발행글 실측). 종결어미는 "-더라고요 / -했어요 / -거든요 / -는데요 / -것 같아요 / -고요"를 섞고, **"-더라구요 / -구요"를 2:1로 섞어.** **"-거예요"는 1~2번만**, **"-죠"로 서술을 끝내지 마** ("-죠?"는 질문에서만).',
+      '- **독자에게 묻는 문장 2~3개** ("~잖아요!", "~죠?"), **ㅠㅠ/ㅎㅎ 1~2번, "!!" 1번**까지. 분위기 잡는 문장·광고 카피 문장은 쓰지 마. 마무리는 2문장 이내.',
+      '- 강조 부사 "완전히/매우/상당히/굉장히" → "완전/진짜/너무/넘", "~합니다/~됩니다" → "~해요/~돼요", "-겠어요" → "-겠죠", 늘어진 번역투는 풀어 쓰기. **추측 표현("~것 같아요")은 글 전체에서 2번까지** — 그 이상은 재료 부족이니 소주제를 줄여.',
       '- **"와닿다"는 절대 쓰지 마.** 무엇이 어떻게 좋은지 구체적으로 써.',
       '- 문장 끝 여운은 `~` 와 `!` 를 섞어 써. **글 한 편에 합쳐서 3~4번까지만.** 남발하면 가벼워 보여.',
       '- 전체 1,500자 전후 (1,300~1,700자). 마크다운 기호(#, *, >)나 굵은 글씨는 쓰지 마.',
@@ -915,11 +1153,15 @@
       '제목 후보: ' + (it.title_bait || ''),
       it.trend_note ? '왜 지금인지: ' + it.trend_note : '',
       it.source_url ? '출처: ' + it.source_url : '',
+      it.source_desc ? (it.origin === 'blog' ? '[원본 블로그 글 — 다른 블로거 글의 제목·앞부분이야. 소재만 참고하고 문장·표현은 따라 쓰지 마. 그 블로거의 개인 후기·경험은 사실로 쓰지 마]' : '[원본 뉴스 — 이 카드의 출발점]') + '\n제목: ' + it.source_title + '\n요약: ' + it.source_desc : '',
+      (it.related_news || []).length ? '[관련 뉴스 — 사실 확인용, 최대 3건]\n' + it.related_news.map(function(n, i){ return (i + 1) + '. ' + n.title + ' / ' + n.description; }).join('\n') : '',
+      (it.source_desc || (it.related_news || []).length) ? '- 위 뉴스·글의 제목·요약에 있는 사실만 근거로 써. 기사에 없는 숫자·가격·날짜·발언은 지어내지 마. 매체 이름, 보도 날짜, "기사에 따르면" 같은 표현은 본문에 쓰지 마. 뉴스끼리 내용이 다르면 겹치는 사실만 써.' : '',
       it.source_url2 ? '출처2: ' + it.source_url2 : '',
       it.hashtags ? '[해시태그 후보 — 검색량 확인된 키워드]\n' + it.hashtags : '',
       links ? '이미지 소스(참고용, 글에 넣지 말 것): ' + links : '',
       '',
       '',
+      profilePromptBlock(it),
       skeleton ? '[이 카테고리의 소주제 뼈대 — 참고용]' : '',
       skeleton ? '아래는 이 분류(' + (it.category || it.category_key || '') + ')에서 보통 쓰는 소주제 구성이야. 그대로 베끼지 말고, [주제 정보]에 있는 재료에 맞게 골라 쓰거나 바꿔도 돼. 재료가 없는 소주제는 빼.' : '',
       skeleton || '',
@@ -941,10 +1183,38 @@
       '', '[현재 글]', String(it.draft_content || '')].join('\n');
   }
 
+  /* 관련 뉴스 보강: 카드 주제(없으면 메인 키워드)로 네이버 뉴스를 정확도순 조회해 원본 기사와 겹치지 않는 최대 3건을 카드(related_news)에 저장한다.
+     조회는 토큰 0, 초안 프롬프트에 3건 분량(제목+요약)이 더해질 뿐이다. 이미 저장돼 있으면 다시 찾지 않는다(🔎 버튼으로만 다시). */
+  async function findRelatedNews(it){
+    var seen = {}, out = [];
+    if(it.source_url) seen[it.source_url] = 1;
+    if(it.source_title) seen['t' + String(it.source_title).replace(/\s+/g, '').slice(0, 14)] = 1;
+    var qs = [];
+    [it.topic, it.main_keyword].forEach(function(q){ q = String(q || '').trim(); if(q && !/^\(링크 확인 전\)/.test(q) && qs.indexOf(q) < 0) qs.push(q); });
+    for(var k = 0; k < qs.length && out.length < 3; k++){
+      var r = await newsFetchRaw(qs[k], 'sim');
+      r.items.forEach(function(n){
+        var tk = 't' + n.title.replace(/\s+/g, '').slice(0, 14);
+        if(out.length >= 3 || (n.link && seen[n.link]) || seen[tk]) return;
+        if(n.link) seen[n.link] = 1; seen[tk] = 1;
+        out.push({ title: n.title, description: String(n.description || '').slice(0, 200), link: n.link, outlet: n.outlet, pubDate: n.pubDate });
+      });
+    }
+    return out;
+  }
+  async function refreshRelatedNews(id, docRef, it, force){
+    if(!force && Array.isArray(it.related_news)) return it.related_news;
+    var list = await findRelatedNews(it);
+    await docRef.update({ related_news: list, related_news_at: Date.now() });
+    it.related_news = list;
+    return list;
+  }
+
   async function writeFeedDraft(id, docRef, revise){
     if(feedWriting) return;
     var it = feedItem;
     if(!it){ toast('주제를 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    if(it.needs_read){ toast(it.origin === 'keyword' ? '아직 자료 조사 전인 카드예요. 다음 주제 생성 때 조사해서 채워요.' : '아직 링크 내용을 읽지 못한 카드예요. Claude에게 "쓸 링크 봐줘"라고 해주세요.'); return; }
     if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
     var ctl = new AbortController();
     feedWriting = ctl;
@@ -957,6 +1227,11 @@
     if(ta) ta.readOnly = true;
     if(st) st.textContent = revise ? '✏️ 고치는 중…' : '✍️ 쓰는 중… (30초~1분)';
     try{
+      if(!revise){
+        if(st) st.textContent = '🔎 관련 뉴스 찾는 중…';
+        try{ await refreshRelatedNews(id, docRef, it, false); }catch(e){ /* 뉴스를 못 찾아도 초안은 쓴다 */ }
+        if(st) st.textContent = '✍️ 쓰는 중… (30초~1분)';
+      }
       var res = await sampleFn(buildFeedPrompt(it, revise), {
         cache: false, signal: ctl.signal,
         onText: function(u){ if(ta) ta.value = u.text; if(st) st.textContent = (revise ? '✏️ 고치는 중… ' : '✍️ 쓰는 중… ') + (u.text || '').length.toLocaleString() + '자'; }
@@ -993,7 +1268,7 @@
   var showAllPosted = false;
 
   function stageOf(c){ return STAGE_OF[c.status] || 'pre'; }
-  function isActive(c){ var s = stageOf(c); return s !== 'posted' && s !== 'dropped'; }
+  function isActive(c){ var s = stageOf(c); return s !== 'posted' && s !== 'dropped' && s !== 'closed'; }
   function isStale(c){ var n = daysUntil(c.due); return n !== null && n < -14; }
 
   function daysUntil(dateStr){
@@ -1022,16 +1297,128 @@
   var TAB_DEFS = [
     { key:'urgent',  label:'🔥 마감' },
     { key:'active',  label:'진행 중' },
-    { key:'pre',     label:'예약 전' },
     { key:'booked',  label:'방문 예정' },
-    { key:'visited', label:'글쓰기 대기' },
     { key:'drafted', label:'초안 준비' },
     { key:'posted',  label:'포스팅 완료' },
+    { key:'closed',  label:'종료' },
     { key:'all',     label:'전체' }
   ];
 
+  /* ── 필터 (2026-10-01 르나 요청): 플랫폼 · 유형 · 지원금 · 마감일 · 상태 · 자동 입력 상태 + 정렬.
+     탭·검색과 같이 걸린다. 선택지는 지금 있는 데이터에서 뽑는다. (월 선택은 10/1 요청으로 뺐다) ── */
+  var campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy:'', sortDir:'asc' };
+  /* 정렬은 노션처럼 "기준 속성 + 방향"이다 (2026-10-01 르나 요청). 고른 값은 이 브라우저에 기억해 둔다. */
+  try{ var sv = JSON.parse(localStorage.getItem('campSort') || 'null'); if(sv && sv.by) { campFilter.sortBy = sv.by; campFilter.sortDir = sv.dir === 'desc' ? 'desc' : 'asc'; } }catch(e){}
+  function saveSort(){ try{ localStorage.setItem('campSort', JSON.stringify({ by: campFilter.sortBy, dir: campFilter.sortDir })); }catch(e){} }
+  var AUTO_OPTS = [['done','기본 정보 채워짐'],['pending','자동 입력 대기'],['failed','자동 입력 실패'],['noprompt','프롬프트 없음'],['nodraft','초안 없음'],['cal','캘린더 등록됨']];
+  var AMOUNT_OPTS = [['none','지원금 없음(미기재)'],['has','지원금 있음']];
+  var DUE_OPTS = [['none','마감일 없음'],['has','마감일 있음'],['over','마감 지남'],['week','7일 이내 마감']];
+  var SORT_BY = [['due','마감일'],['visit','방문일'],['created','등록일'],['amount','지원금'],['name','업체명']];
+  var SORT_DIR = {
+    date:   [['asc','오래된 항목부터'],['desc','새로운 항목부터']],
+    amount: [['asc','적은 금액부터'],['desc','많은 금액부터']],
+    name:   [['asc','가나다순'],['desc','가나다 역순']]
+  };
+  function sortKind(by){ return by === 'amount' ? 'amount' : (by === 'name' ? 'name' : 'date'); }
+  /* 값이 비어 있는 건(마감일 없음, 지원금 미기재 등)은 방향과 상관없이 늘 맨 뒤 */
+  function sortVal(c, by){
+    if(by === 'due') return c.due ? String(c.due).slice(0, 10) : null;
+    if(by === 'visit') return c.visit_date ? String(c.visit_date).slice(0, 10) + (c.visit_time ? ' ' + c.visit_time : '') : null;
+    if(by === 'created') return c.created ? String(c.created).slice(0, 10) : null;
+    if(by === 'amount') return Number(c.amount) > 0 ? Number(c.amount) : null;
+    if(by === 'name') return displayName(c) || null;
+    return null;
+  }
+  function cmpSort(a, b, by, dir){
+    var va = sortVal(a, by), vb = sortVal(b, by);
+    if(va === null && vb === null) return 0;
+    if(va === null) return 1;
+    if(vb === null) return -1;
+    var r = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'ko');
+    return dir === 'desc' ? -r : r;
+  }
+  function filterActive(){ return !!(campFilter.platform || campFilter.type || campFilter.amount || campFilter.due || campFilter.status || campFilter.auto); }
+  function matchFilter(c){
+    if(campFilter.platform && (c.platform || '') !== campFilter.platform) return false;
+    if(campFilter.type && (c.types || []).indexOf(campFilter.type) < 0) return false;
+    if(campFilter.amount){
+      var has = Number(c.amount) > 0;
+      if((campFilter.amount === 'has') !== has) return false;
+    }
+    if(campFilter.due){
+      var n = daysUntil(c.due), f = campFilter.due;
+      if(f === 'none' && n !== null) return false;
+      if(f === 'has' && n === null) return false;
+      if(f === 'over' && !(n !== null && n < 0)) return false;
+      if(f === 'week' && !(n !== null && n >= 0 && n <= 7)) return false;
+    }
+    if(campFilter.status && (c.status || '상태 미정') !== campFilter.status) return false;
+    if(campFilter.auto){
+      var a = c.auto_status || '';
+      if(campFilter.auto === 'noprompt') return !c.prompt;
+      if(campFilter.auto === 'nodraft') return !c.draft_content;
+      if(campFilter.auto === 'cal') return !!c.calendar_event_id;
+      return a === campFilter.auto;
+    }
+    return true;
+  }
+  var lastFilterKey = '';
+  function renderCampFilters(){
+    var el = document.getElementById('campFilters');
+    if(!el) return;
+    var plat = {}, types = {}, stat = {}, noAmt = 0, noDue = 0;
+    camps.forEach(function(c){
+      if(c.platform) plat[c.platform] = (plat[c.platform] || 0) + 1;
+      (c.types || []).forEach(function(t){ if(t) types[t] = (types[t] || 0) + 1; });
+      var st = c.status || '상태 미정'; stat[st] = (stat[st] || 0) + 1;
+      if(!(Number(c.amount) > 0)) noAmt++;
+      if(daysUntil(c.due) === null) noDue++;
+    });
+    var platList = Object.keys(plat).sort(function(a, b){ return plat[b] - plat[a] || a.localeCompare(b); });
+    var typeList = Object.keys(types).sort(function(a, b){ return types[b] - types[a] || a.localeCompare(b); });
+    var statOrder = []; CAMP_STAGES.forEach(function(sg){ sg.statuses.forEach(function(v){ statOrder.push(v); }); });
+    var statList = Object.keys(stat).sort(function(a, b){
+      var ia = statOrder.indexOf(a), ib = statOrder.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b);
+    });
+    var key = JSON.stringify([platList, typeList, stat, noAmt, noDue, campFilter.sortBy]);
+    if(key !== lastFilterKey){
+      lastFilterKey = key;
+      function sel(f, label, opts, allLabel){
+        return '<select data-f="' + f + '" aria-label="' + esc(label) + '"><option value="">' + esc(allLabel) + '</option>' +
+          opts.map(function(o){ return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') + '</select>';
+      }
+      el.innerHTML =
+        sel('platform', '플랫폼', platList.map(function(p){ return [p, p + ' (' + plat[p] + ')']; }), '플랫폼 전체') +
+        sel('amount', '지원금', AMOUNT_OPTS.map(function(o){ return [o[0], o[1] + (o[0] === 'none' ? ' (' + noAmt + ')' : '')]; }), '지원금 전체') +
+        sel('due', '마감일', DUE_OPTS.map(function(o){ return [o[0], o[1] + (o[0] === 'none' ? ' (' + noDue + ')' : '')]; }), '마감일 전체') +
+        sel('status', '상태', statList.map(function(v){ return [v, v + ' (' + stat[v] + ')']; }), '상태 전체') +
+        sel('type', '유형', typeList.map(function(t){ return [t, t + ' (' + types[t] + ')']; }), '유형 전체') +
+        sel('auto', '자동 입력', AUTO_OPTS, '자동 입력 전체') +
+        sel('sortBy', '정렬 기준', SORT_BY, '정렬: 기본') +
+        (campFilter.sortBy ? '<select data-f="sortDir" aria-label="정렬 방향">' + SORT_DIR[sortKind(campFilter.sortBy)].map(function(o){ return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('') + '</select>' : '') +
+        '<button type="button" class="btn-link" id="campFilterReset">필터 지우기</button>' +
+        '<span class="save-status" id="campFilterCount"></span>';
+    }
+    el.querySelectorAll('select[data-f]').forEach(function(s){ var v = campFilter[s.dataset.f] || ''; if(String(s.value) !== String(v)) s.value = v; });
+    var rb = document.getElementById('campFilterReset'); if(rb) rb.hidden = !filterActive();
+  }
+  document.getElementById('campFilters').addEventListener('change', function(e){
+    var s = e.target.closest('select[data-f]'); if(!s) return;
+    campFilter[s.dataset.f] = s.value;
+    if(s.dataset.f === 'sortBy') campFilter.sortDir = 'asc';
+    if(s.dataset.f === 'sortBy' || s.dataset.f === 'sortDir') saveSort();
+    renderCamps();
+  });
+  document.getElementById('campFilters').addEventListener('click', function(e){
+    if(!e.target.closest('#campFilterReset')) return;
+    campFilter = { platform:'', type:'', amount:'', due:'', status:'', auto:'', sortBy: campFilter.sortBy, sortDir: campFilter.sortDir };
+    renderCamps();
+  });
+
   function matchStage(c, key){
     if(key === 'all') return true;
+    if(key === 'closed'){ var sg = stageOf(c); return sg === 'closed' || sg === 'dropped'; }
     if(key === 'active') return isActive(c);
     // 🔥 마감 : 오늘이 마감이거나 이미 지난 것만. 상태는 건드리지 않고 보기만 거른다.
     if(key === 'urgent'){
@@ -1039,7 +1426,24 @@
       var n = daysUntil(c.due);
       return n !== null && n <= 0;
     }
+    // "글쓰기 대기" 탭 삭제 (2026-10-01 은아님 요청) — 방문 완료·네이버 리뷰 작성 단계도 "초안 준비" 탭에서 같이 본다.
+    if(key === 'drafted') return stageOf(c) === 'drafted' || stageOf(c) === 'visited';
     return stageOf(c) === key;
+  }
+  function needsReserve(c){ return isActive(c) && stageOf(c) === 'pre' && !c.visit_date && !c.product_review; }
+
+  /* 예약 문자 문구 — docs/03 2번 원문 그대로. 업체명은 지역 수식어를 뺀 핵심 상호명.
+     방문일은 은아님이 정하므로(자동화는 날짜를 제안하지 않는다) 비어 있으면 빈칸으로 둔다. */
+  function smsText(c){
+    var when = c.visit_date ? fmtShort(c.visit_date).replace(/\(.\)$/, '').replace('/', '월 ') + '일' + (c.visit_time ? ' ' + c.visit_time : '') : '○월 ○일 ○시';
+    return '안녕하세요. ' + (coreName(c.name) || '[업체명]') + ' 사장님 체험단 선정된 김은아라고 합니다. ' + when + '에 방문해도 될까요??';
+  }
+  function reserveActionsHtml(c){
+    var tel = String(c.reserve_phone || '').replace(/[^0-9+]/g, '');
+    var info = c.auto_status === 'pending' || !c.name ? '⏳ 기본 정보 아직 전' : (c.auto_status === 'failed' ? '⚠️ 링크 못 읽음 · 열어서 확인' : '');
+    return '<div class="c-actions" style="margin-top:8px"><span class="hint">' + esc(info) + '</span>' +
+      (tel ? '<a class="btn-sm" href="tel:' + esc(tel) + '" style="text-decoration:none">📞 ' + esc(c.reserve_phone) + '</a>' : '<span class="hint" style="flex:none">예약 번호 없음</span>') +
+      '<button type="button" class="btn-sm" data-sms="1">📱 문자 문구 복사</button></div>';
   }
 
   function renderCamps(){
@@ -1054,22 +1458,27 @@
       var d = c.visit_date || c.due || '';
       return s + ((d.slice(0,7) === month && stageOf(c) !== 'dropped') ? (Number(c.amount)||0) : 0);
     }, 0);
+    var totalSum = camps.reduce(function(s,c){ return s + (stageOf(c) !== 'dropped' ? (Number(c.amount)||0) : 0); }, 0);
 
     document.getElementById('campStats').innerHTML =
       '<button type="button" class="stat' + (visitSoon.length?' hot':'') + '" data-go="booked"><div class="k">오늘·내일 방문</div><div class="v">' + visitSoon.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat' + (dueSoon.length?' hot':'') + '" data-go="urgent"><div class="k">마감 3일 이내</div><div class="v">' + dueSoon.length + '<small>건</small></div></button>' +
       '<button type="button" class="stat' + (drafted.length?' hot':'') + '" data-go="drafted"><div class="k">초안 확인·업로드</div><div class="v">' + drafted.length + '<small>건</small></div></button>' +
-      '<button type="button" class="stat" data-go="all"><div class="k">' + (+month.slice(5)) + '월 지원금</div><div class="v">' + (monthSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '<small>만원</small></div></button>';
+      '<button type="button" class="stat" data-go="posted"><div class="k">' + (+month.slice(5)) + '월 지원금</div><div class="v">' + (monthSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '<small>만원</small></div><div class="acc">누적 ' + (totalSum/10000).toLocaleString('ko-KR',{maximumFractionDigits:1}) + '만원</div></button>';
 
     var badge = document.getElementById('campCount');
     var todo = dueSoon.length + drafted.length;
     badge.hidden = !todo; badge.textContent = todo;
 
+    renderCampFilters();
     var q = campQuery.trim().toLowerCase();
     var searched = camps.filter(function(c){
+      if(!matchFilter(c)) return false;
       if(!q) return true;
       return ((c.name||'') + ' ' + (c.platform||'') + ' ' + (c.note||'') + ' ' + (c.received||'')).toLowerCase().indexOf(q) >= 0;
     });
+    var fc = document.getElementById('campFilterCount');
+    if(fc) fc.textContent = filterActive() || q ? searched.length + '건 (전체 ' + camps.length + ')' : '';
 
     document.getElementById('campTabs').innerHTML = TAB_DEFS.map(function(t){
       var n = searched.filter(function(c){ return matchStage(c, t.key); }).length;
@@ -1092,13 +1501,16 @@
       }
       return (b.visit_date||b.due||'').localeCompare(a.visit_date||a.due||'');
     });
+    if(campFilter.sortBy){
+      list.sort(function(a,b){ return cmpSort(a, b, campFilter.sortBy, campFilter.sortDir); });
+    }
 
     var el = document.getElementById('campList');
     if(!list.length){
-      el.innerHTML = '<div class="empty">' + (q ? '검색 결과가 없어요.' : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
+      el.innerHTML = '<div class="empty">' + (q || filterActive() ? '조건에 맞는 체험단이 없어요.' + (filterActive() ? '<br>다른 탭을 누르거나 필터를 지워보세요.' : '') : (campStage==='urgent' ? '오늘 마감이거나 마감이 지난 체험단이 없어요. 👏' : campStage==='visited' ? '글쓰기 대기 중인 체험단이 없어요.<br>방문하고 나면 상태를 "방문 완료"로 바꿔주세요.' : '해당하는 체험단이 없어요.')) + '</div>';
       return;
     }
-    var limit = (campStage === 'posted' || campStage === 'all') && !showAllPosted && !q ? 30 : list.length;
+    var limit = (campStage === 'posted' || campStage === 'closed' || campStage === 'all') && !showAllPosted && !q && !filterActive() ? 30 : list.length;
     var html = list.slice(0, limit).map(campCardHtml).join('');
     if(list.length > limit) html += '<button type="button" class="btn-sm more" id="campMore">' + (list.length - limit) + '건 더 보기</button>';
     el.innerHTML = html;
@@ -1123,7 +1535,8 @@
     if(c.auto_status === 'pending' && !na.hint) na.hint = '🤖 자동 입력 대기 중';
     if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
-    if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>');
+    if(c.product_review) meta.push('<b>제품 리뷰</b>');
+    if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>' + (c.calendar_event_id ? ' 📅' : ''));
     if(c.due) meta.push('마감 <b>' + esc(fmtShort(c.due)) + '</b>');
     if(c.amount) meta.push('지원 <b>' + esc(won(c.amount)) + '</b>');
     if(c.extra_pay) meta.push('추가결제 <b>' + esc(won(c.extra_pay)) + '</b>');
@@ -1144,6 +1557,7 @@
             (na.btn ? '<button type="button" class="btn-sm good" ' + (na.btn.draft ? 'data-draft="1"' : 'data-to="' + esc(na.btn.to) + '"') + '>' + esc(na.btn.label) + '</button>' : '') +
             '<button type="button" class="btn-sm primary" data-open="1">' + (s === 'drafted' || s === 'visited' ? '✍️ 초안·상세' : '열기') + '</button>' +
           '</div>' : '') +
+        (needsReserve(c) ? reserveActionsHtml(c) : '') +
       '</div>';
   }
 
@@ -1151,6 +1565,11 @@
     if(!db) return;
     try{
       await db.doc('campaigns/' + id).update({ status: status, status_updated_at: Date.now() });
+      if(STAGE_OF[status] === 'booked'){
+        var bc = camps.find(function(x){ return x.id === id; });
+        if(bc && !bc.visit_date){ toast('예약 완료! 열어서 방문일·시간을 넣으면 구글 캘린더에 바로 등록돼요 📅'); return; }
+        if(bc) setTimeout(function(){ syncCalendar(id, false); }, 300);
+      }
       if(status === '방문 완료'){
         var c = camps.find(function(x){ return x.id === id; });
         if(c && !c.draft_content) writeDraft(id);
@@ -1198,7 +1617,8 @@
       '',
       '[경험은 전부 르나 본인의 경험으로]',
       '- 아래 [프롬프트]의 경험 칸(6️⃣ 경험 / 3️⃣ 나의 실사용 후기 경험담)이 르나가 실제로 받은 것과 느낀 점이야. 후기 문장이 있으면 가장 중요하게 살려.',
-      '- 5️⃣ 참고할 관련 정보에 있는 다른 사람들의 후기 내용은 "후기에서 ~라고 해요", "~라고 알려져 있어요"처럼 남의 말로 옮기지 말고, 르나가 직접 먹고(받고) 느낀 것처럼 1인칭으로 생생하게 써. 예: "국물이 깔끔하다는 후기가 많아요" (X) → "국물이 깔끔해서 마지막 숟가락까지 계속 손이 갔어요" (O)',
+      '- 5️⃣ 참고할 관련 정보에 있는 다른 사람들의 후기 중 **르나가 받은 메뉴·시술·서비스의 맛·식감·느낌**은 르나가 직접 겪은 것처럼 1인칭으로 생생하게 써. 예: "국물이 깔끔하다는 후기가 많아요" (X) → "국물이 깔끔해서 마지막 숟가락까지 계속 손이 갔어요" (O)',
+      '- **그러나 르나가 확인하지 않은 수치·구성·다른 메뉴·남들의 선택은 1인칭으로 단정하지 마.** "~라는 후기가 많아요", "~한 조합이 가장 많더라구요"로 써. 예: "뼈가 3개씩 들어가요" (X) → "뼈가 3개씩 들어간다는 후기가 많아요" (O) (2026-10-01 르나 발행글 실측)',
       '- 맛·식감·분위기·효과·서비스를 구체적인 장면으로 묘사해서 읽는 사람이 상상할 수 있게 해.',
       '- **[프롬프트]의 1️⃣ 위치 및 주차 칸에 적힌 📍 주소 ☎️ 전화번호 🕖 영업시간 🚘 주차 값은 있는 그대로 그대로 옮겨 써. 절대 바꾸거나 빼지 마.**',
       '- **🚘 주차 : 주차가 된다고 확인된 가게에만 🚘 줄을 써. 주차 불가이거나 주차 정보를 못 찾으면 🚘 줄을 아예 빼고, 소주제 이름도 "1. 위치"로 써. 주차 이야기 자체를 쓰지 말고 "방문 전 매장 문의"로도 채우지 마.** (2026-09-24 르나 확정)',
@@ -1209,7 +1629,7 @@
       isMedical
         ? '- **"내돈내산"은 이 글(피부과·의원 후기)에서만 쓸 수 있다.** 제목에 넣어도 되고 본문이나 마무리에 써도 돼. 필수는 아니야.'
         : '- **"내돈내산"이라는 말을 제목에도 본문에도 해시태그에도 절대 쓰지 마.** 협찬 사실을 밝히지도 않지만, 내 돈으로 샀다고 주장하지도 않는다. 산 사실·결제·가격을 내가 냈다는 식의 표현("제 돈으로", "결제하고 왔어요", "사비로") 도 마찬가지로 금지.',
-      '- 체험 가능 요일·시간, 예약 조건, 제공 내역, 추가 결제 같은 체험단 조건 이야기. 아래 [업체 참고 자료]는 배경 지식일 뿐 글에 옮기지 마.',
+      '- **체험단에게 해당되는 내용은 블로그에 작성하지 마** (2026-10-01 르나 확정). 체험 가능 요일·시간, 예약 방법·연락 시간, 방문 N일 전 연락, 초대권, 추가금 본인 부담, 노쇼, 신청·발표 기간 같은 참가자 조건이 아래 [프롬프트]의 5️⃣ 참고 정보나 [업체 참고 자료]에 섞여 있어도 글에는 한 줄도 옮기지 마. 독자에게 필요한 영업시간·휴무일·메뉴·가격만 쓴다.',
       '- 캠페인 담당자 번호' + (c.reserve_phone ? '(' + c.reserve_phone + ')' : '') + '. 전화번호는 업체 대표번호만.',
       '- 큰따옴표·작은따옴표 강조, "체감했다", "~시점이다" 같은 문어체, "~할 만했어요", "괜찮은 선택이에요", "좋을 것 같아요", "~한 편이었어요" 같은 애매한 표현.',
       '- 굵은 글씨, #, >, * 같은 마크다운 기호. 사진 자리표시([비포 사진] 등).',
@@ -1226,6 +1646,10 @@
       '- **같은 단어를 제목 안에서 반복하지 마.** 예: "부천실용음악학원 보컬학원 위드뮤직실용음악학원" (X — 실용음악학원이 두 번) → "부천 보컬 발성 레슨 위드뮤직실용음악학원" (O)',
       '- 제목의 롱테일 키워드는 본문에도 **7회 이상** 자연스럽게 나와야 해. 억지로 끼워 넣어 문장이 어색해지면 안 돼.',
       '',
+      (c.keywords || c.mission) ? '[캠페인 필수 조건 — 업체가 요구한 것이라 반드시 지켜]' : '',
+      c.keywords ? '- 업체 요청 키워드: ' + String(c.keywords).trim() + '. 이 중 1개를 메인으로 골라 **제목에 1회, 본문에 3회 이상**(아래 미션에 횟수가 적혀 있으면 그 횟수) 띄어쓰기 그대로 넣고, 나머지 키워드도 본문에 1회 이상 + 해시태그 30개 안에 전부 넣어.' : '',
+      c.mission ? '- 체험단 미션: ' + String(c.mission).trim().replace(/\s*\n\s*/g, ' / ') + '. 글자 수·키워드 횟수 조건은 글에서 바로 지켜. 사진 수·영상·지도·배너 같은 발행 조건은 글에 쓰지 마 (르나가 올릴 때 챙겨).' : '',
+      (c.keywords || c.mission) ? '' : '',
       '[형식]',
       '[문체 - 르나 실제 블로그 문체 / 2026-09-22 재확정]',
       '- **글의 맨 첫 문장은 한 문장만 단독으로 써.** 도입부 첫 줄에 다른 문장을 붙이지 마.',
@@ -1241,18 +1665,19 @@
       '- 첫 줄: 최종 제목 한 줄. 빈 줄 한 개. 그다음 도입부(공감·상황으로 후킹), 소주제별 본문, 마무리.',
       '- **소주제 번호는 `1.` `2.` `3.` 형식으로 쓴다.** ①②③ 같은 기호는 쓰지 마. [프롬프트]에 ①②③으로 적혀 있어도 본문에서는 숫자와 점으로 바꿔 쓴다.',
       '',
-      '[어투 - 2026-09-22 확정]',
-      '- 르나는 말하듯이 써. **다만 고치는 건 "어미"가 아니라 "글로 쓴 티"야.** 종결어미를 억지로 바꾸면 오히려 르나 말투에서 멀어져.',
-      '- **고칠 것은 이 네 가지뿐이야.**',
-      '  1) 강조 부사 "완전히 / 매우 / 상당히 / 굉장히" → **"완전 / 진짜 / 너무"** (예: "완전히 달랐어요" → "완전 달랐어요~")',
-      '  2) 합쇼체가 섞인 서술 "~합니다 / ~됩니다 / ~입니다" → **"~해요 / ~돼요 / ~이에요"** (예: "잡으시면 됩니다" → "잡으시면 돼요")',
-      '  3) **"-겠어요" → "-겠죠"** (이 어미 하나만. 예: "확인하시면 되겠어요" → "확인하시면 되겠죠")',
-      '  4) 늘어진 번역투는 풀어 써 ("~하는 개념으로 생각하시는 게 맞아요" → "~라고 생각하시면 돼요", "~해보셨으면 해요" → "~해보세요")',
-      '- **건드리지 마 — 르나가 실제로 쓰는 말이야.** "~거예요"와 "~것 같아요"는 그대로 둬. "마음에 드실 거예요"를 "드시겠죠"로, "기억에 남는 것 같아요"를 "남죠"로 바꾸지 마.',
-      '- 종결어미는 "-더라고요 / -했어요 / -좋았어요 / -거든요 / -거예요 / -것 같아요 / -고요"를 섞어 써. 같은 어미를 세 문장 연속으로 쓰지 마.',
-      '- **"와닿다"는 절대 쓰지 마.** 어떤 어미를 붙여도 안 돼. "이 부분이 크게 와닿으실 거예요" → "이 부분이 제일 반가우실 거예요"처럼 무엇이 어떻게 좋은지 구체적으로 써.',
-      '- 문장 끝 여운은 `~` 와 `!` 를 섞어 써. **글 한 편에 합쳐서 3~4번까지만.** 남발하면 가벼워 보여. 물결표는 부드럽게 풀 때, 느낌표는 확실히 추천하거나 감탄할 때.',
-      '- 문단마다 한두 번은 감탄이나 혼잣말을 섞어 생기를 줘. 예: "셀프바에 밥이 따로 준비되어 있다는 사실! 무료로 추가할 수 있어서 더 좋더라고요!"',
+      '[어투 v2 - 2026-10-01 르나 발행글 50편 + 초안↔발행 19쌍 실측]',
+      '- 르나는 말하듯이 써. 고치는 건 "어미"가 아니라 "글로 쓴 티"야. 아래는 르나가 초안을 받아 실제로 고친 방향이야.',
+      '- 종결어미는 "-더라고요 / -했어요 / -거든요 / -는데요 / -것 같아요 / -고요"를 섞고, **"-더라구요 / -구요"를 "-더라고요 / -고요"와 2:1로 섞어** (예: "그때뿐이더라구요", "넘 좋아하시더라구요!!"). 같은 어미를 세 문장 연속으로 쓰지 마.',
+      '- **"-거예요"는 글 한 편에 1~2번만.** "-이에요/-예요" 서술도 줄이고 "-했어요 / -더라구요 / -는데요"로 분산해. "-것 같아요"는 자연스럽게 써도 돼.',
+      '- **"-죠"로 서술을 끝내지 마.** "제일 아쉬웠죠" (X) → "아쉽더라구요" (O). "-죠?"는 독자에게 묻는 질문에서만.',
+      '- **독자에게 묻는 문장을 글 한 편에 2~3개 넣어.** 예: "전문성 장난아니죠?", "사진이랑 다른 경우가 있잖아요." 초안에는 물음표가 0개였고 르나 글에는 1만 자당 4개가 있어.',
+      '- 감탄·혼잣말은 짧게. **ㅠㅠ/ㅎㅎ는 1~2번, "!!"는 1번까지.** `~`와 `!`는 합쳐서 3~4번. 예: "서른 중반이 되어가면서 아니 증말 ㅠㅠ", "지금 받은 지 한 달쯤 되었는데요!"',
+      '- 강조 부사 "완전히/매우/상당히/굉장히" → "완전/진짜/너무/넘". 합쇼체 "~합니다/~됩니다/~입니다" → "~해요/~돼요". "-겠어요" → "-겠죠". 늘어진 번역투는 풀어 써.',
+      '- **분위기 잡는 문장과 광고 카피 같은 문장은 쓰지 마.** 르나가 전부 지웠어. 예: "거울 보는 시간이 이상하게 짧아지더라고요", "한 번 가보시면 왜 늘 손님이 많은지 바로 아실 거예요" (X)',
+      '- **마무리는 2문장 이내.** 추천 한 줄 + "기억해두세요" 정도. 상황 나열("회식 끝나고, 야근 끝나고, 새벽에…")을 반복하지 마. 재료가 끝나면 끝내. 분량을 채우려 늘리지 마.',
+      '- 소주제 제목은 문장이 아니라 **검색어 묶음**이야 (예: "줄기세포 유지기간", "메뉴 추천 가격", "웨이팅 꿀팁"). 제목에 넣은 키워드를 소주제 제목에 다시 써.',
+      '- **"와닿다"는 절대 쓰지 마.** 어떤 어미를 붙여도 안 돼. 무엇이 어떻게 좋은지 구체적으로 써.',
+      '- 유형별 소구 규칙([시술 후기 소구 규칙], [판매형 …] 등)이 아래 [프롬프트]의 템플릿 안에 있으면 그 규칙이 이 어투 규칙보다 우선이야 (시술 글은 ㅠㅠ·질문을 더 쓴다).',
 
       '[도입부 - 2026-09-22 확정 / 르나 블로그 실물 6편 분석]',
       '- **날짜를 쓰지 마.** "9월 17일 오후에 다녀온", "지난 주말에 방문한" 같은 표현 금지. 르나는 실제 글에서 방문 날짜를 한 번도 쓰지 않아. (영업시간·휴무일·이벤트 기간처럼 독자에게 필요한 날짜는 본문에 써도 돼)',
@@ -1355,6 +1780,9 @@
       '플랫폼: ' + (c.platform || ''),
       '유형(참고, 틀릴 수 있음): ' + ((c.types || []).join(', ') || '없음'),
       '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1200),
+      '업체 요청 키워드: ' + String(c.keywords || '없음').slice(0, 300),
+      '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 600),
+      c.raw ? '캠페인 페이지 원문(르나가 붙여넣음 — 위 항목이 비어 있으면 여기서 찾아 쓴다):\n' + String(c.raw).slice(0, 4000) : '',
       '받은 것(르나 기록): ' + String(c.received || '아직 없음').slice(0, 400),
       '',
       '[템플릿 목록]',
@@ -1371,13 +1799,82 @@
       '[채우는 법]',
       '- 고른 템플릿의 구조·문구·공통 규칙은 한 글자도 바꾸지 말고 빈칸만 채워.',
       '- 1️⃣ 제목, 2️⃣ 핵심 키워드(지역+업종 롱테일 1개 + 보조 2~4개), 3️⃣·4️⃣의 [지역]/[상황]/[고민], 소주제 제목의 [프로그램명]/[시술명]/[제품명]을 이 업체에 맞게 채워.',
-      '- 5️⃣ 참고할 관련 정보(판매형은 7️⃣)에는 제공 내역·예약 주의사항만 적고, 주소·전화번호·영업시간·주차·평점·메뉴 가격은 지금 확인할 수 없으니 각각 [확인 필요]로 남겨.',
+      '- 업체 요청 키워드가 있으면 그중 1개를 2️⃣ 메인 키워드로, 나머지는 보조 키워드와 해시태그 후보에 전부 넣어. 미션에 적힌 글자 수·키워드 횟수는 5️⃣에 한 줄로 옮겨.',
+      '- 5️⃣ 참고할 관련 정보(판매형은 7️⃣)에는 **글에 들어갈 것만** 적어: [리뷰 가이드] = 업체 요청 키워드·미션(횟수·글자 수)·글에 꼭 언급할 메뉴/서비스. 예약 방법·체험 가능 시간·방문 전 연락·추가금 본인 부담·초대권·신청 기간처럼 **체험단 참가자에게만 해당하는 조건은 넣지 마** (리뷰에 섞여 들어간다). 주소·전화번호·영업시간·주차·평점·메뉴 가격은 지금 확인할 수 없으니 각각 [확인 필요]로 남겨.',
       '- 경험 칸(검색형 "6️⃣ 경험", 판매형 "3️⃣ 나의 실사용 후기 경험담") 아래 안내 문구는 지우고 {{경험}} 한 줄만 둬. 예: "6️⃣ 경험 :\\n{{경험}}"',
       '- "7️⃣ 관련 링크" 줄은 넣지 마. 없는 정보를 지어내지 마.',
       '',
       '[출력 형식]',
       '첫 줄에 "TEMPLATE: <템플릿키>" 만 쓰고, 그다음 줄부터 완성된 프롬프트 전문만 출력해. 설명·인사말은 쓰지 마.'
     ].join('\n');
+  }
+
+  /* ── 📎 캠페인 원문 정리: 르나가 붙여넣은 페이지 글자(raw)에서 기본 정보를 뽑아 채우고 프롬프트까지 쓴다 (2026-10-01 르나 요청).
+     플랫폼은 링크 호스트로 코드가 정하고(틀릴 일이 없다), 나머지는 Claude 가 JSON 으로 뽑는다. 원문에 없는 값은 비운다. ── */
+  var PLATFORM_HOST = { 'dinnerqueen.net':'디너의여왕', 'reviewnote.co.kr':'리뷰노트', 'revu.net':'레뷰', 'ringble.co.kr':'링블',
+    'xn--939au0g4vj8sq.net':'강남맛집', 'whogiup.com':'후기업', 'mrblog.net':'미스터블로그', 'reviewplace.co.kr':'리뷰플레이스' };
+  function platformOfUrl(u){ var h = hostOf(u); var k = Object.keys(PLATFORM_HOST).filter(function(x){ return h === x || h.slice(-x.length - 1) === '.' + x; })[0]; return k ? PLATFORM_HOST[k] : ''; }
+  var rawParsing = {};
+  function buildRawParsePrompt(c, raw){
+    var list = Object.keys(templates).map(function(k){ var t = templates[k] || {}; return '- ' + k + ' | ' + (t.name || '') + ' | ' + [].concat(t.types || []).join(','); }).join('\n');
+    return [
+      '너는 르나의 체험단 캠페인 페이지 원문을 정리하는 조수야. 아래 [원문]에서 값을 뽑아 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"name":"","platform":"","link":"","due":"","amount":null,"offer":"","keywords":"","mission":"","template":""}',
+      '- name: "[지역] 업체명" (지역은 원문에 있을 때만, 예 "[경기 부천] 파티세리 라피네"). 캠페인 차수("43차")·플랫폼 이름은 뺀다.',
+      '- platform: 디너의여왕 / 리뷰노트 / 레뷰 / 링블 / 강남맛집 / 후기업 / 미스터블로그 중 하나. 원문에 없으면 "".',
+      '- link: 캠페인 페이지 URL (https://…). 없으면 "".',
+      '- due: 블로그 리뷰 마감일 YYYY-MM-DD ("리뷰 기간"·"포스팅 기간"·"리뷰 마감"의 끝 날짜). "26.10.13"처럼 두 자리 연도면 20을 붙여. 연도가 없으면 ' + localToday().slice(0, 4) + '. 없으면 "".',
+      '- amount: 지원금(원, 숫자만). 제공 내역에 금액이 여러 개면("합성엔진오일 10만원 상당 or 브레이크오일 8만원 상당 중 택일") **가장 높은 금액 하나**. "~상당"도 지원금으로 본다. "3만원대"는 30000, "10만원 상당"은 100000. 없으면 null. 추가 결제·추가금·본인 부담은 뽑지 않는다(르나가 방문 후 직접 적는다).',
+      '- offer: 제공 내역 + 체험 가능 요일·시간·휴무 + 예약 방법·주의사항을 줄바꿈으로 3~6줄. 원문 문장을 줄여 쓴다.',
+      '- keywords: 업체가 요구한 키워드("키워드"·"필수 키워드"·"블로그 키워드")를 쉼표로. 없으면 "".',
+      '- mission: 키워드 횟수(제목 n회·본문 n회), 글자 수, 사진 수, 영상, 지도, 배너 같은 조건을 " / "로 이어 한 줄. 없으면 "".',
+      '- template: 아래 목록에서 업종에 맞는 키 하나. 음식점·카페·디저트 s_food, 피부·체형·네일·발 관리 s_esthetic, 병원·의원 s_derm, 음악·보컬 s_vocal, 운동 s_pt, 꽃집 s_flower, 자동차 s_car, 헤어 s_hair, 집으로 받는 제품은 p_*.',
+      '- 원문에 없는 값은 지어내지 말고 "" 또는 null.',
+      '', '[템플릿 목록]', list,
+      '', '[원문]', String(raw).slice(0, 6000)
+    ].join('\n');
+  }
+  async function parseRawCampaign(id){
+    var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
+    if(!c || rawParsing[id]) return;
+    var ta = detailId === id ? document.getElementById('f_raw') : null;
+    var raw = String((ta && ta.value) || c.raw || '').trim();
+    var st = detailId === id ? document.getElementById('dRawState') : null;
+    if(!raw){ toast('먼저 캠페인 페이지 글자를 붙여넣어 주세요.'); if(ta) ta.focus(); return; }
+    if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
+    if(!templatesLoaded){ toast('템플릿을 아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    rawParsing[id] = true;
+    var btn = document.getElementById('dRawParse'); if(btn) btn.disabled = true;
+    if(st){ st.className = 'auto-line wait'; st.textContent = '⚡ 원문에서 기본 정보 뽑는 중… (10~20초)'; }
+    try{
+      var res = await sampleFn(buildRawParsePrompt(c, raw), { cache: false });
+      var j = parseJsonLoose(res && res.text);
+      if(!j) throw new Error('parse');
+      var patch = { raw: raw };
+      var urlm = raw.match(/https?:\/\/[^\s"'<>)]+/);
+      var link = safeUrl(j.link) || (urlm ? safeUrl(urlm[0]) : '');
+      if(link) patch.link = link;
+      var plat = platformOfUrl(link) || String(j.platform || '').trim();
+      if(plat) patch.platform = plat;
+      if(j.name && String(j.name).trim()) patch.name = String(j.name).trim();
+      if(/^\d{4}-\d{2}-\d{2}$/.test(String(j.due || ''))) patch.due = j.due;
+      if(Number(j.amount) > 0) patch.amount = Math.round(Number(j.amount));
+      ['offer', 'keywords', 'mission'].forEach(function(k){ if(j[k] && String(j[k]).trim()) patch[k] = String(j[k]).trim(); });
+      if(j.template && templates[j.template] && !c.template){ patch.template = j.template; var mt = tplMainType(j.template); if(mt) patch.types = [mt]; }
+      patch.note = ((c.note || '') + '\n📎 캠페인 원문에서 기본 정보 정리 (' + localToday() + ')').trim();
+      await db.doc('campaigns/' + id).update(patch);
+      var filled = Object.keys(patch).filter(function(k){ return k !== 'raw' && k !== 'note'; });
+      toast('기본 정보 ' + filled.length + '개 채웠어요 📎');
+      if(st){ st.className = 'auto-line'; st.textContent = '정리 완료 · ' + filled.join(', ') + (c.prompt ? '' : ' · 이어서 프롬프트를 써요'); }
+      if(!c.prompt){ setTimeout(function(){ writePromptNow(id, true); }, 300); }
+    }catch(e){
+      if(e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled' || e.code === 'capability_removed')) sampleBlocked = true;
+      toast('원문을 정리하지 못했어요. 잠시 후 다시 눌러주세요.');
+      if(st){ st.className = 'auto-line fail'; st.textContent = '정리 실패 — 다시 눌러주세요'; }
+    }finally{
+      delete rawParsing[id];
+      var b2 = document.getElementById('dRawParse'); if(b2) b2.disabled = false;
+    }
   }
 
   /* 성공하면 {template, prompt} 를 돌려준다. 초안 쓰기가 이 값을 그대로 이어받는다.
@@ -1615,6 +2112,11 @@ async function writeReview(id){
     var hit = banList.filter(function(w){ return t.indexOf(w) >= 0; });
     out.push({ ok: !hit.length, label: hit.length ? '금지어 ' + hit.length + '개 발견' : '금지어 없음', sub: hit.length ? hit.join(', ') + ' — 지워야 해요' : '체험단·협찬·대가 표현 없음 ✓' });
     var kws = mainKeywords(c);
+    // 업체 요청 키워드(📎 캠페인 원문에서 정리)가 있으면 그것을 먼저 센다 (2026-10-01)
+    if(c && c.keywords){
+      var reqKw = String(c.keywords).split(/[,，]/).map(function(x){ return x.trim(); }).filter(Boolean);
+      if(reqKw.length) kws = reqKw.concat(kws.filter(function(k){ return reqKw.indexOf(k) < 0; })).slice(0, 6);
+    }
     if(kws.length){
       var main = kws[0];
       var inTitle = countOf(title, main), inBody = countOf(body, main);
@@ -1628,7 +2130,7 @@ async function writeReview(id){
     var hasPlace = /[📍☎️]/.test(t);
     if(derm) out.push({ ok: !hasPlace, label: derm && !hasPlace ? '병원 정보 없음 ✓' : '병원 위치·연락처가 들어 있어요', sub: '의료기관은 상호·주소·번호를 쓰면 안 돼요' });
     else out.push({ ok: hasPlace, warn: !hasPlace, label: hasPlace ? '위치·영업시간 줄 있음 ✓' : '위치 정보 줄이 없어요', sub: '📍 주소 ☎️ 번호 🕖 영업시간' });
-    out.push({ ok: true, info: true, label: '사진 15장 이상 + 지도 링크', sub: '업로드할 때 직접 확인 (대부분 플랫폼 공통 미션)' });
+    out.push({ ok: true, info: true, label: (c && c.mission) ? '📎 캠페인 미션' : '사진 15장 이상 + 지도 링크', sub: (c && c.mission) ? String(c.mission).replace(/\s*\n\s*/g, ' / ').slice(0, 200) : '업로드할 때 직접 확인 (대부분 플랫폼 공통 미션)' });
     return out;
   }
   function renderChecks(text, c){
@@ -1708,6 +2210,11 @@ async function writeReview(id){
     if(e.target.closest('#campMore')){ showAllPosted = true; renderCamps(); return; }
     if(e.target.closest('a')) return;
     var card = e.target.closest('.c-card'); if(!card) return;
+    if(e.target.closest('[data-sms]')){
+      var sc = camps.find(function(x){ return x.id === card.dataset.id; });
+      if(sc) copyString(smsText(sc));
+      return;
+    }
     var to = e.target.closest('[data-to]');
     if(to){ to.disabled = true; setCampStatus(card.dataset.id, to.dataset.to); return; }
     if(e.target.closest('[data-draft]')){ writeDraft(card.dataset.id); return; }
@@ -1738,7 +2245,7 @@ async function writeReview(id){
       input.value = ''; addForm.hidden = true;
       document.getElementById('campAdd').setAttribute('aria-expanded', 'false');
       campStage = 'active'; renderCamps();
-      toast('추가했어요! 다음 월·목 오후 2시 30분에 기본 정보와 프롬프트가 채워져요 🤖');
+      toast('추가했어요! 다음 월~목 오전 10시에 기본 정보와 프롬프트가 채워져요 🤖');
     }catch(err){
       toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
     }
@@ -1750,7 +2257,7 @@ async function writeReview(id){
   var FIELDS = [
     { k:'name', label:'업체명', type:'text', full:true },
     { k:'platform', label:'체험단 플랫폼', type:'text', list:'platList' },
-    { k:'types', label:'유형 (쉼표로 구분)', type:'types' },
+    { k:'template', label:'유형 (프롬프트 템플릿)', type:'tpl' },
     { k:'visit', label:'방문일', type:'visit' },
     { k:'due', label:'마감일', type:'date' },
     { k:'amount', label:'지원금 (원)', type:'number' },
@@ -1769,9 +2276,42 @@ async function writeReview(id){
     detailTimers = {}; detailFlush = {}; detailPending = {};
   }
 
+  /* 방문 시간: 30분 단위 드롭다운 (2026-10-01 르나 요청). 옛 값이 30분 단위가 아니면 fillDetail 이 그 값을 옵션으로 덧붙인다. */
+  function timeOptions(){
+    var h = '<option value="">시간 미정</option>';
+    for(var i = 0; i < 48; i++){ var t = pad(Math.floor(i / 2)) + ':' + (i % 2 ? '30' : '00'); h += '<option value="' + t + '">' + t + '</option>'; }
+    return h;
+  }
+  /* 유형 = 프롬프트 템플릿. 고르면 template 키와 대표 유형(types[0])을 같이 저장한다. 비워두면 둘 다 비운다.
+     옛 캠페인은 template 이 없어서 types[0] 로 짝이 맞는 템플릿을 화면에만 보여준다(저장은 안 함). */
+  function tplMainType(key){ var t = templates[key]; return t && t.types && t.types.length ? t.types[0] : ''; }
+  function tplGuess(c){
+    if(c.template && templates[c.template]) return c.template;
+    var ty = (c.types || [])[0];
+    if(!ty) return '';
+    var keys = Object.keys(templates);
+    for(var i = 0; i < keys.length; i++){ var tt = templates[keys[i]]; if(tt && tt.types && tt.types[0] === ty) return keys[i]; }
+    return '';
+  }
+  function fillTplSelect(){
+    var el = document.getElementById('f_template');
+    if(!el || !templatesLoaded) return;
+    var list = sortedTemplates();
+    var sig = list.map(function(t){ return t.id + t.name; }).join('|');
+    if(el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
+    var h = '<option value="">선택 안 함</option>';
+    TPL_GROUPS.forEach(function(g){
+      var items = list.filter(function(t){ return t.group === g; });
+      if(items.length) h += '<optgroup label="' + esc(g) + '">' + items.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join('') + '</optgroup>';
+    });
+    el.innerHTML = h;
+  }
+
   function fieldInput(f){
     var id = 'f_' + f.k;
-    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><input id="f_visit_time" data-k="visit_time" type="time" style="max-width:120px"></div></div>';
+    if(f.type === 'visit') return '<div class="f"><label for="f_visit_date">방문일 · 시간 (30분 단위)</label><label class="chk-inline"><input type="checkbox" id="f_product_review" data-k="product_review"> 제품 리뷰 (방문 없음)</label><div class="row"><input id="f_visit_date" data-k="visit_date" type="date"><select id="f_visit_time" data-k="visit_time" style="max-width:130px">' + timeOptions() + '</select></div></div>';
+    if(f.type === 'tpl') return '<div class="f"><label for="f_template">' + esc(f.label) + '</label><select id="f_template" data-k="template"><option value="">선택 안 함</option></select></div>';
     var t = f.type === 'types' ? 'text' : f.type;
     return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + id + '">' + esc(f.label) + '</label>' +
       '<input id="' + id + '" data-k="' + f.k + '" type="' + t + '"' + (f.list ? ' list="' + f.list + '"' : '') + (t==='number' ? ' inputmode="numeric" min="0" step="1000"' : '') + ' autocomplete="off"></div>';
@@ -1784,13 +2324,19 @@ async function writeReview(id){
     document.getElementById('campDetail').innerHTML =
       '<h1 class="d-title" id="dTitle"></h1>' +
       '<div class="d-status"><select id="f_status" data-k="status" aria-label="상태">' + statusOpts + '</select>' +
-        '<span id="dDday"></span><span class="save-status" id="dSave"></span></div>' +
+        '<span id="dDday"></span><span class="save-status" id="dSave"></span>' +
+        '<button type="button" class="btn-sm" id="dCalBtn" hidden>📅 캘린더 등록</button><span class="save-status" id="dCalState"></span></div>' +
 
       '<div class="panel" style="border-color:var(--accent)"><div class="panel-head"><h2>🎁 제공 내역 · 경험 <span style="font-weight:600">— 내가 쓰는 곳</span></h2></div>' +
         '<div class="f"><label for="f_received">6️⃣ 협찬으로 받은 것</label><textarea id="f_received" data-k="received" rows="2" placeholder="예: 우동정식, 돈까스 / 카카오라떼(ICE)·헤이즐넛 모카 크림라떼"></textarea>' +
         '<div class="help">받은 것 이름만 적어도 돼요. 다 쓰고 상태를 "방문 완료"로 바꾸면 바로 전체 글을 써요 (후기가 없으면 프롬프트에 모아둔 다른 사람들 후기를 바탕으로 써요).</div></div>' +
         '<div class="f" style="margin-top:10px"><label for="f_review">후기 (선택)</label><textarea id="f_review" data-k="review" rows="3" placeholder="좋았던 점, 아쉬운 점, 기억나는 장면 등. 비워둬도 돼요."></textarea>' +
         '<div class="help">적어두면 초안에 실제 경험으로 그대로 반영돼요.</div></div>' +
+      '</div>' +
+
+      '<div class="panel"><div class="panel-head"><h2>📎 캠페인 원문 <span style="font-weight:600">— 사이트 글자를 그대로 붙여넣는 곳</span></h2><button type="button" class="btn-sm primary" id="dRawParse">⚡ 기본 정보·프롬프트에 정리</button></div>' +
+        '<textarea id="f_raw" data-k="raw" rows="5" placeholder="링크, 업체명, 제공 내역, 키워드, 미션… 구분 없이 캠페인 페이지를 Ctrl+A → Ctrl+C 해서 그대로 붙여넣으세요"></textarea>' +
+        '<div class="auto-line" id="dRawState" style="margin-top:6px">붙여넣고 ⚡를 누르면 업체명·플랫폼·링크·마감·제공 내역·키워드·미션을 📌 기본 정보에 채우고 프롬프트까지 써요. 안 눌러도 월~목 10시 루틴이 같은 일을 해요.</div>' +
       '</div>' +
 
       '<div class="panel"><div class="panel-head"><h2>📋 프롬프트 양식</h2><span class="auto-tag">🤖 자동 작성</span></div>' +
@@ -1813,12 +2359,13 @@ async function writeReview(id){
       '</div>' +
       '<div class="panel"><h2>✍️ 블로그 초안</h2>' +
         '<div class="editor-savebar"><span class="save-status" id="dDraftState"></span><span class="draft-btns"><button type="button" class="btn-sm primary" id="dDraftBtn">✍️ 초안 쓰기</button><button type="button" class="btn-sm" id="dDraftStop" hidden>멈추기</button><button type="button" class="btn-copy" id="dCopy">복사하기</button></span></div>' +
+        '<div class="auto-line" id="dMissionLine" hidden></div>' +
         '<textarea class="editor-textarea" id="f_draft_content" data-k="draft_content" style="min-height:40vh" placeholder="방문 완료로 바꾸거나 초안 쓰기를 누르면 받은 것·후기와 프롬프트를 바탕으로 바로 초안을 써요. 마음에 안 드는 부분은 여기서 바로 고치면 자동 저장돼요."></textarea>' +
         '<div class="sec-head"><span>✏️ 고치고 싶은 곳 알려주기</span><span class="save-status">요청한 부분만 다시 써요</span></div>' +
         '<textarea class="rev-ta" id="f_revise" placeholder="예) ③ 메뉴 설명이 길어요, 절반으로 줄여줘&#10;도입부가 딱딱해요. 좀 더 수다스럽게&#10;마무리에 주차 이야기 한 줄 넣어줘&#10;해시태그에 지역 키워드 더 넣어줘"></textarea>' +
         '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="dReviseBtn">✏️ 수정 반영</button><button type="button" class="btn-sm" id="dReviseStop" hidden>멈추기</button><span class="save-status" id="dReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>' +
         '<div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="dPostState"></span></div>' +
-        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (자동 감지는 아직 없어요)" autocomplete="off">' +
+        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (비워두면 홈의 📮 발행 확인이 제목으로 찾아 채워요)" autocomplete="off">' +
         '<div class="sec-head"><span>업로드 전 점검</span><span class="save-status">플랫폼 미션·금지어 자동 확인</span></div><div class="chk-list" id="dCheck"></div>' +
         '<div class="sec-head"><span>소주제별 복사</span><span class="save-status">누르면 그 부분만 복사돼요</span></div><div class="sec-list" id="dSections"></div>' +
       '</div>' +
@@ -1843,7 +2390,9 @@ document.getElementById('dRevBtn').onclick = async function(){
 };
 document.getElementById('f_naver_review').addEventListener('input', function(){ revCount(this.value); });
     document.getElementById('dDraftStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
+    document.getElementById('dCalBtn').onclick = function(){ syncCalendar(detailId, true); };
     document.getElementById('dPromptNow').onclick = function(){ writePromptNow(detailId); };
+    document.getElementById('dRawParse').onclick = function(){ parseRawCampaign(detailId); };
     document.getElementById('dPromptStop').onclick = function(){ var p = prompting[detailId]; if(p) p.ctl.abort(); };
     document.getElementById('dReviseBtn').onclick = function(){ reviseDraft(detailId); };
     document.getElementById('dReviseStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
@@ -1905,6 +2454,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(k === 'amount' || k === 'extra_pay') return v === '' ? null : Math.max(0, Math.round(Number(v)||0));
     if(k === 'types') return v.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean);
     if(k === 'visit_date' || k === 'visit_time' || k === 'due') return v || null;
+    if(el.type === 'checkbox') return !!el.checked;
     return v;
   }
 
@@ -1917,19 +2467,26 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     saveEl.textContent = '입력 중...';
     detailPending[k] = true;
     clearTimeout(detailTimers[k]);
-    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time') ? 0 : 700;
+    var delay = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time' || el.type === 'checkbox') ? 0 : 700;
     var id = detailId;
     var myTimer;
     var run = function(){
       delete detailFlush[k];
       var patch = {}; patch[k] = readField(el);
       if(k === 'status'){ patch.status_updated_at = Date.now(); }
+      if(k === 'product_review' && patch.product_review){ patch.visit_date = null; patch.visit_time = null; }   // 제품 리뷰는 방문이 없으니 방문일·시간을 비운다
+      if(k === 'template'){ patch.template = el.value || null; patch.types = el.value && tplMainType(el.value) ? [tplMainType(el.value)] : []; }
       if(k === 'draft_content'){ patch.draft_updated_at = Date.now(); }
       var pendingK = k;
       db.doc('campaigns/' + id).update(patch).then(function(){
         if(detailTimers[pendingK] === myTimer) detailPending[pendingK] = false;
         saveEl.textContent = '저장됨 · ' + nowHM();
         if(k === 'status' && patch.status === '방문 완료'){ var cc = lastDetail || {}; if(!cc.draft_content) writeDraft(id); }
+        // 예약 완료 + 방문일·시간이 갖춰지면 그 자리에서 구글 캘린더에 등록한다 (토큰 0)
+        if(k === 'status' || k === 'visit_date' || k === 'visit_time'){
+          var merged = Object.assign({}, lastDetail || {}, patch, { id: id });
+          if(calNeeds(merged)) setTimeout(function(){ syncCalendar(id, false); }, 400);
+        }
       }).catch(function(){ if(detailTimers[pendingK] === myTimer) detailPending[pendingK] = false; saveEl.textContent = '저장 실패 — 다시 시도해주세요'; });
     };
     detailFlush[k] = run;
@@ -1974,21 +2531,25 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var auto = document.getElementById('dAutoState');
     if(c.auto_status === 'failed'){ auto.className = 'auto-line fail'; auto.textContent = '⚠️ 자동 입력 실패' + (c.auto_note ? ' — ' + c.auto_note : '') + ' · 다음 자동화 때 다시 시도해요'; }
     else if(c.auto_filled_at){ auto.className = 'auto-line'; auto.textContent = fmtStamp(c.auto_filled_at) + ' 자동 입력' + (c.auto_note ? ' · ' + c.auto_note : ''); }
-    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월·목 오후 2시 30분 자동화 때 캠페인 링크에서 채워져요'; }
+    else if(c.auto_status === 'pending' || !c.name){ auto.className = 'auto-line wait'; auto.textContent = '⏳ 월~목 오전 10시 자동화 때 캠페인 링크에서 채워져요'; }
     else { auto.className = 'auto-line'; auto.textContent = '예전에 등록한 체험단이에요'; }
 
-    var visit = c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '';
+    var visit = c.product_review ? '제품 리뷰 (방문 없음)' : (c.visit_date ? esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') : '');
     document.getElementById('dInfoView').innerHTML =
       kvRow('체험단 플랫폼', esc(c.platform)) +
-      kvRow('유형', esc((c.types || []).join(', '))) +
+      kvRow('유형', esc((templates[tplGuess(c)] && templates[tplGuess(c)].name) || (c.types || []).join(', '))) +
       kvRow('방문일', visit) +
       kvRow('마감일', c.due ? esc(fmtShort(c.due)) : '') +
       kvRow('지원금', c.amount ? esc(won(c.amount)) : '') +
       kvRow('추가 결제', c.extra_pay ? esc(won(c.extra_pay)) : '') +
       kvRow('예약 전화번호 (담당자용 · 본문 노출 금지)', c.reserve_phone ? '<a href="tel:' + esc(c.reserve_phone.replace(/[^0-9+]/g,'')) + '" style="color:inherit">' + esc(c.reserve_phone) + '</a>' : '') +
       kvRow('동행인', esc(c.companion)) +
-      kvRow('제공 내역 · 체험 조건', esc(c.offer || (c.note || '').split(' / 초안 자동생성')[0].trim()).replace(/\n/g,'<br>'), true);
+      kvRow('제공 내역 · 체험 조건', esc(c.offer || '').replace(/\n/g,'<br>'), true) +
+      kvRow('업체 요청 키워드 (제목·본문·해시태그에 꼭)', esc(c.keywords || ''), true) +
+      kvRow('체험단 미션 · 가이드', esc(c.mission || '').replace(/\n/g,'<br>'), true);
 
+    var ml = document.getElementById('dMissionLine');
+    if(ml){ ml.hidden = !c.mission; ml.textContent = c.mission ? '📎 발행 전 체크 — ' + String(c.mission).replace(/\s*\n\s*/g, ' / ') : ''; }
     var pState = document.getElementById('dPromptState');
     var pView = document.getElementById('dPromptView');
     var pBtn = document.getElementById('dPromptNow');
@@ -2006,7 +2567,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       pView.innerHTML = esc(pp.before) + '<span class="mine">' + esc(pp.mine) + '</span>' + esc(pp.after);
     } else {
       pState.className = 'auto-line wait';
-      pState.textContent = '⏳ 월·목 오후 2시 30분 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
+      pState.textContent = '⏳ 월~목 오전 10시 자동화가 네이버 업종·후기·검색량을 확인해서 채워요. 기다리기 싫으면 위 "⚡ 지금 작성하기"를 누르세요 (웹 확인 없이 등록된 정보로만 써요)';
       var tpl = templates[c.template];
       pView.innerHTML = tpl
         ? '<span style="color:var(--sub)">' + esc(tpl.body) + '</span>'
@@ -2019,6 +2580,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(db2){ db2.textContent = c.draft_content ? '↻ 다시 쓰기' : '✍️ 초안 쓰기'; db2.disabled = !sampleFn || sampleBlocked; db2.title = (!sampleFn || sampleBlocked) ? 'claude.ai에서 열어야 쓸 수 있어요' : ''; }
     if(!reviewing[c.id]){ revCount(c.naver_review); var rb = document.getElementById('dRevBtn'); if(rb){ rb.textContent = c.naver_review ? '↻ 다시 쓰기' : '✍️ 리뷰 쓰기'; rb.disabled = !sampleFn || sampleBlocked || !c.draft_content && !c.prompt; } }
     refreshDraftUI(c.id, drafting[c.id] ? '✍️ 쓰는 중… 본문 ' + (drafting[c.id].len || 0).toLocaleString() + '자' : null);
+    fillTplSelect();
     root.querySelectorAll('[data-k]').forEach(function(el){
       if(document.activeElement === el) return;
       if(el.dataset.k === 'draft_content' && drafting[detailId]) return;
@@ -2026,13 +2588,30 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       if(detailPending[el.dataset.k]) return;
       var k = el.dataset.k, v = c[k];
       if(k === 'types') v = (c.types || []).join(', ');
+      if(el.type === 'checkbox'){ el.checked = !!c[k]; return; }
+      if(k === 'template') v = tplGuess(c);
       if(v == null) v = '';
+      if(k === 'visit_time' && v && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
+        var ot = document.createElement('option'); ot.value = v; ot.textContent = v; el.appendChild(ot);
+      }
       if(k === 'status' && !Array.prototype.some.call(el.options, function(o){ return o.value === v; })){
         var o = document.createElement('option'); o.value = v; o.textContent = v || '상태 미정'; el.insertBefore(o, el.firstChild);
       }
       if(String(el.value) !== String(v)) el.value = v;
     });
+    var vd = document.getElementById('f_visit_date'), vt = document.getElementById('f_visit_time');
+    if(vd) vd.disabled = !!c.product_review;
+    if(vt) vt.disabled = !!c.product_review;
     document.getElementById('dDday').innerHTML = ddayHtml(c);
+    var cb = document.getElementById('dCalBtn'), cs = document.getElementById('dCalState');
+    if(cb && cs && !calBusy[c.id]){
+      var need = calNeeds(c);
+      cb.hidden = !need;
+      cb.textContent = need === 'update' ? '📅 시간 변경 반영' : '📅 캘린더 등록';
+      cs.innerHTML = c.calendar_event_id
+        ? (need === 'update' ? '방문 시간이 바뀌었어요' : '📅 캘린더 등록됨' + (safeUrl(c.calendar_link) ? ' · <a href="' + esc(safeUrl(c.calendar_link)) + '" target="_blank" rel="noopener" style="color:inherit">열기</a>' : ''))
+        : (isBooked(c) && !c.visit_date ? '방문일·시간을 넣으면 캘린더에 자동 등록돼요' : '');
+    }
     var links = '';
     if(safeUrl(c.link)) links += '<a href="' + esc(safeUrl(c.link)) + '" target="_blank" rel="noopener">🔗 캠페인 페이지</a>';
     if(safeUrl(c.photo_folder)) links += '<a class="img-link" href="' + esc(safeUrl(c.photo_folder)) + '" target="_blank" rel="noopener">📁 사진 폴더</a>';
@@ -2135,13 +2714,15 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   function renderHome(){
     var todoEl = document.getElementById('homeTodo');
     if(!todoEl) return;
+    renderChannels(); renderCelebRank();
     if(!campLoaded || !itemsLoaded){ todoEl.innerHTML = '<div class="empty">불러오는 중...</div>'; return; }
+    if(!detectStarted){ detectStarted = true; setTimeout(function(){ detectPublished(false); }, 1500); }
 
     // 오늘 써야 할 글 = 컨펌했는데 초안 없는 홈피드 + 방문 완료인데 초안 없는 체험단
     var feedToWrite = allItems.filter(function(i){ return i.status === 'confirmed' && !i.draft_content; });
     var campToWrite = camps.filter(function(c){ return stageOf(c) === 'visited' && !c.draft_content; });
     // 올릴 차례 = 초안이 있는데 아직 발행 안 한 것
-    var feedToPost = allItems.filter(function(i){ return i.draft_content && !i.posted_url; });
+    var feedToPost = allItems.filter(function(i){ return i.draft_content && !i.posted_url && i.status !== 'posted'; });
     var campToPost = camps.filter(function(c){ return stageOf(c) === 'drafted' && c.draft_content; });
     var due3 = camps.filter(function(c){ var n = daysUntil(c.due); return isActive(c) && n !== null && n <= 3; });
 
@@ -2168,41 +2749,131 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
                  '<span class="sec-c">' + (r.d ? esc(fmtShort(r.d)) : '') + '</span></a>'; }).join('')
       : '<div class="save-status">지금 할 일이 없어요. 새 주제가 올라오면 여기 뜨게 돼요 🙂</div>';
 
-    // 순위
-    var ranked = allItems.concat(camps).filter(function(x){ return x.rank_checked_at; })
-      .sort(function(a,b){ return (b.rank_checked_at||0) - (a.rank_checked_at||0); });
-    var rankEl = document.getElementById('homeRank');
-    rankEl.innerHTML = ranked.length ? ranked.slice(0, 8).map(function(x){
-        var cur = Number(x.rank) || 0, prv = Number(x.rank_prev) || 0;
-        var label = cur ? cur + '위' : '100위 밖';
-        var move = (!prv || !cur) ? '' : (prv > cur ? ' ▲' + (prv - cur) : (cur > prv ? ' ▼' + (cur - prv) : ' －'));
-        return '<div class="sec-item"><span class="sec-t">' + esc(x.rank_keyword || x.main_keyword || '') + '</span>' +
-               '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
-               '<span class="sec-c">' + label + move + '</span></div>'; }).join('')
-      : '<div class="save-status">아직 확인한 글이 없어요. 발행한 글이 쌓이면 월요일에 순위를 재서 보여드려요.</div>';
-    var rankStateEl = document.getElementById('homeRankState');
-    if(rankStateEl) rankStateEl.textContent = ranked.length ? '월요일 12시 20분에 갱신' : '발행된 글이 없어 아직 순위를 볼 수 없어요';
-
-    // 추천 키워드
-    var kwEl = document.getElementById('homeKw');
-    kwEl.innerHTML = (kwPicks && kwPicks.picks && kwPicks.picks.length)
-      ? kwPicks.picks.slice(0, 10).map(function(p){
-          return '<div class="chk"><span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b>' +
-                 '<small>월 ' + Number(p.volume || 0).toLocaleString() + '회 · 문서 ' + Number(p.docs || 0).toLocaleString() + '건' +
-                 (p.ratio ? ' · 비율 ' + p.ratio : '') + (p.note ? ' · ' + esc(p.note) : '') + '</small></span></div>'; }).join('')
-      : '<div class="save-status">월요일 12시 20분에 이번 주 키워드를 뽑아서 여기 올려요.</div>';
-
-    // 최근 발행
-    var posted = allItems.concat(camps).filter(function(x){ return x.posted_url; })
-      .sort(function(a,b){ return (b.posted_at||0) - (a.posted_at||0); });
-    document.getElementById('homePosted').innerHTML = posted.length
-      ? posted.slice(0, 8).map(function(x){
-          return '<a class="sec-item" href="' + esc(safeUrl(x.posted_url)) + '" target="_blank" rel="noopener">' +
-                 '<span class="sec-t">' + (x.topic ? 'TIDINGS' : 'EL.LIGHT') + '</span>' +
-                 '<span class="sec-p">' + esc(x.topic || x.name || '') + '</span>' +
-                 '<span class="sec-c">' + (x.posted_at ? new Date(x.posted_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '') + '</span></a>'; }).join('')
-      : '<div class="save-status">발행한 글이 여기 쌓여요.</div>';
+    renderKwPicks();
   }
+  // 추천 키워드: 카테고리별로 묶어서 보여준다. 눌러서 그 줄 아래에 검색량 조회를 펼친다.
+  function renderKwPicks(){
+    var kwEl = document.getElementById('homeKw');
+    if(!kwEl) return;
+    var picks = (kwPicks && kwPicks.picks) || [];
+    if(!picks.length){
+      kwEl.innerHTML = '<div class="save-status">아직 이번 주 키워드가 없어요. 월·목 오전 7시에 뽑아서 여기 올려요.</div>';
+      return;
+    }
+    var groups = {}, order = [];
+    picks.forEach(function(p){ var g = p.category || '기타'; if(!groups[g]){ groups[g] = []; order.push(g); } groups[g].push(p); });
+    kwEl.innerHTML = (kwPicks.date ? '<div class="save-status">' + esc(kwPicks.date) + ' 기준 · 눌러서 검색량 조회 · 월·목 오전 7시에 새로 뽑고, 카드 있음·다른 키워드 표시는 목요일에 바뀌어요</div>' : '') +
+      order.map(function(g){
+        var mode = groups[g][0].mode || '';
+        return '<div class="sec-head" style="margin:8px 0 2px"><span style="font-size:13.5px">' + esc(g) + '</span><span class="save-status">' + esc(mode) + '</span></div>' +
+          groups[g].map(function(p){
+            var bits = ['월 ' + Number(p.volume || 0).toLocaleString() + '회'];
+            if(p.trend) bits.push(p.trend);
+            if(p.comp) bits.push('경쟁 ' + p.comp);
+            if(p.earn) bits.push(p.earn);
+            if(p.note) bits.push(p.note);
+            var has = hasKwCard(p.kw);
+            return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
+              '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' +
+              '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
+              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '<button type="button" class="btn-sm' + (newsKw[p.kw] && newsKw[p.kw].open ? ' primary' : '') + '" data-kwnews="' + esc(p.kw) + '">📰 뉴스</button><button type="button" class="btn-sm' + (blogKw[p.kw] && blogKw[p.kw].open ? ' primary' : '') + '" data-kwblog="' + esc(p.kw) + '">📝 블로그</button></div>' + inlineKwSlot(p.kw, LINK_CAT_KEY[p.category]) + newsKwSlot(p.kw, LINK_CAT_KEY[p.category]) + blogKwSlot(p.kw, LINK_CAT_KEY[p.category]);
+          }).join('');
+      }).join('');
+    fillInlineKw(kwEl);
+  }
+
+  /* 키워드를 누르면 그 줄 바로 아래에 검색량 조회를 펼친다. 다시 누르면 접힌다.
+     조회는 뷰어의 커넥터로 나가서 Claude 토큰이 들지 않는다. */
+  var kwOpen = {};   // 키워드 -> {loading} | {data} | {error}
+  function inlineKwSlot(kw, cat){
+    var st = kwOpen[kw];
+    if(!st) return '';
+    return '<div class="kw-res kw-inline" data-kwfor="' + esc(kw) + '" data-catkey="' + esc(cat || '') + '" style="width:100%">' +
+      (st.loading ? '<div class="save-status">조회 중…</div>' : (st.error ? '<div class="save-status">' + esc(st.error) + '</div>' : '')) + '</div>';
+  }
+  function fillInlineKw(root){
+    root.querySelectorAll('.kw-inline[data-kwfor]').forEach(function(el){
+      var st = kwOpen[el.dataset.kwfor];
+      if(st && st.data) kwRender(st.data, el);
+    });
+  }
+  function rerenderKw(){ renderKwPicks(); renderCelebRank(); }
+  async function toggleInlineKw(kw){
+    if(kwOpen[kw]){ delete kwOpen[kw]; rerenderKw(); return; }
+    kwOpen[kw] = { loading: true }; rerenderKw();
+    await initKeywordMcp();
+    if(!mcpNs){ kwOpen[kw] = { error: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' }; rerenderKw(); return; }
+    try{
+      var res = await callKeyword(kw, true), d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      if(!kwOpen[kw]) return;                       // 조회 중에 접었으면 그대로 둔다
+      kwOpen[kw] = { data: d };
+    }catch(e){
+      if(!kwOpen[kw]) return;
+      var f = mcpFix(e);
+      kwOpen[kw] = { error: f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : '') };
+    }
+    rerenderKw();
+  }
+  function relatedJump(e){
+    var rel = e.target.closest('.kw-inline button[data-kw]');
+    if(!rel) return false;
+    document.getElementById('kwInput').value = rel.dataset.kw;
+    kwLookup(rel.dataset.kw);
+    document.querySelector('.kwbox').scrollIntoView({ behavior:'smooth', block:'start' });
+    return true;
+  }
+  /* 추천 키워드의 '주제 선정' — 그 카테고리 탭에 주제 카드를 바로 만든다. DB 쓰기만 하므로 Claude 토큰이 들지 않는다.
+     페이지는 웹 자료를 못 읽으니 카드는 '자료 조사 전' 상태로 만들고(초안 쓰기 막힘), Claude 가 "주제 조사해줘"를 받으면 채운다. */
+  /* '다른 키워드' — 그 키워드에 교체 표시(swap)를 달아 둔다. 목요일 07시 루틴이 표시된 키워드를 새로 뽑아 바꾼다. DB 쓰기만이라 토큰 0. */
+  async function toggleSwap(kw){
+    if(!db || !kwPicks || !kwPicks.id){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var picks = ((kwPicks.picks) || []).map(function(x){
+      if(x.kw !== kw) return x;
+      var y = Object.assign({}, x); if(y.swap) delete y.swap; else y.swap = true; return y;
+    });
+    try{
+      await db.doc('keyword_picks/' + kwPicks.id).update({ picks: picks });
+      var on = picks.filter(function(x){ return x.kw === kw; })[0].swap;
+      toast(on ? '목요일 오전 7시에 다른 키워드로 바꿔요' : '교체 표시를 뺐어요');
+    }catch(err){ toast('저장하지 못했어요. 다시 시도해주세요.'); }
+  }
+  function hasKwCard(kw){
+    return allItems.some(function(i){ return i.origin === 'keyword' && i.main_keyword === kw && i.status !== 'posted'; });
+  }
+  async function makePickCard(kw){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var p = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === kw; })[0];
+    if(!p) return;
+    var key = LINK_CAT_KEY[p.category];
+    if(!key){ toast('이 카테고리는 카드를 만들 수 없어요.'); return; }
+    if(hasKwCard(kw)){ toast('이미 카드가 있어요'); return; }
+    var meta = CAT_META[key] || { label: p.category };
+    var note = String(p.note || '');
+    var m = note.match(/각도:\s*(.+)$/);
+    var angle = m ? m[1].trim() : '';
+    var pre = note.replace(/(^|\s*·\s*)각도:.*$/, '').trim();
+    var id = 'k' + Date.now().toString(36);
+    try{
+      await db.doc('items/' + id).set({
+        date: localToday(), category_key: key, category: String(meta.label).replace(/^\S+\s/, ''),
+        topic: kw, emphasis: angle ? '각도 제안: ' + angle : '', twist: '자료 조사 전이에요. 다음 주제 생성 때 이 카드를 조사해서 강조·반전 포인트와 출처를 채워요.', title_bait: '',
+        main_keyword: kw, keyword_volume: Number(p.volume) || 0,
+        trend_note: kw + ' 월 ' + Number(p.volume || 0).toLocaleString() + '회' + (p.trend ? ' ' + p.trend : '') + (pre ? ' · ' + pre : ''),
+        source_url: '', status: 'pending', origin: 'keyword', needs_read: true, created_at: Date.now()
+      });
+      toast('주제 카드를 만들었어요. ' + String(meta.label).replace(/^\S+\s/, '') + ' 탭에서 확인하세요');
+    }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '카드를 만들지 못했어요. 다시 시도해주세요.'); }
+  }
+  document.getElementById('homeKw').addEventListener('click', function(e){
+    if(relatedJump(e)) return;
+    var sw = e.target.closest('[data-pickswap]');
+    if(sw){ toggleSwap(sw.dataset.pickswap); return; }
+    var mk = e.target.closest('[data-pickmk]');
+    if(mk){ if(!mk.disabled) makePickCard(mk.dataset.pickmk); return; }
+    var b = e.target.closest('[data-pickkw]'); if(!b) return;
+    toggleInlineKw(b.dataset.pickkw);
+  });
   function weekPosted(){
     var t = new Date(); var day = (t.getDay() + 6) % 7;           // 월요일 시작
     var mon = new Date(t.getFullYear(), t.getMonth(), t.getDate() - day).getTime();
@@ -2228,6 +2899,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      페이지가 바깥에 닿는 통로는 "뷰어의 claude.ai 커넥터" 하나뿐이라 MCP 로 부른다.
      호출은 뷰어 자격증명으로 나가고, 이 코드는 토큰을 보지 않는다. */
   var MCP_SERVER = 'naver-blog-helper';
+  /* 구글 캘린더도 같은 통로(뷰어의 claude.ai 커넥터)로 부른다 (2026-10-01).
+     9/22에 "대시보드는 캘린더를 못 부른다"고 적었던 건 MCP 통로를 찾기 전 기록이라 틀렸다.
+     커넥터 표시 이름이 주소다. 캘린더는 이름이 같은 게 여러 개라 id 로만 지정한다 (docs/40). */
+  var CAL_SERVER = 'Google Calendar';
+  var CAL_ID = 'family13035616985683376181@group.calendar.google.com';
   var mcpNs = null;          // claude.use('mcp') 결과. null 이면 이 화면에서는 못 쓴다
   var mcpChecked = false;
   var kwBusy = false;
@@ -2310,10 +2986,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(d.related && d.related.length){
       rel += '<div class="kw-rel"><h3>연관 키워드 — 눌러서 바로 조회</h3>';
       d.related.forEach(function(r){
-        rel += '<button type="button" data-kw="' + esc(r.keyword) + '">' +
+        var rn = newsKw[r.keyword] && newsKw[r.keyword].open;
+        rel += '<div class="pick-row"><button type="button" data-kw="' + esc(r.keyword) + '" style="flex:1;min-width:0">' +
                '<span class="rk">' + esc(r.keyword) + '</span>' +
                '<span class="rv">' + (r.under_10 ? '10회 미만' : comma(r.total)) + '</span>' +
-               '<span class="rc">' + esc(r.comp || '') + '</span></button>';
+               '<span class="rc">' + esc(r.comp || '') + '</span></button>' +
+               '<button type="button" class="btn-sm' + (rn ? ' primary' : '') + '" data-relnews="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📰 뉴스</button>' +
+               '<button type="button" class="btn-sm' + (blogKw[r.keyword] && blogKw[r.keyword].open ? ' primary' : '') + '" data-kwblog="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📝 블로그</button></div>' +
+               newsKwSlot(r.keyword, '') + blogKwSlot(r.keyword, '');
       });
       rel += '</div>';
     }
@@ -2333,6 +3013,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         (t.notice ? '<br>' + esc(t.notice) : '') +
         (t.error ? '<br>추이를 못 가져왔어요 — 검색량 수치만 보시면 돼요' : '') +
       '</div>' + rel;
+    res._kwData = d;
     res.hidden = false;
   }
 
@@ -2390,10 +3071,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       '다시 눌러보시면 허용 창이 떠요.']
   };
 
-  function mcpFix(e){
+  function mcpFix(e, server){
     var code = (e && e.code) || 'upstream_error';
     var f = MCP_FIX[code] || ['조회하지 못했어요.', (e && e.message) ? esc(e.message) : ''];
-    return { code: code, msg: f[0], fix: f[1], retryable: !!(e && e.retryable), after: (e && e.retryAfterMs) || 0 };
+    var other = server && server !== MCP_SERVER;
+    var sub = function(s){ return other ? String(s).split(MCP_SERVER).join(esc(server)).replace('중계 서버가', esc(server) + ' 커넥터가').replace('Render 무료 플랜이라 자고 있었을 수 있어요. ', '') : s; };
+    return { code: code, msg: sub(f[0]), fix: sub(f[1]), retryable: !!(e && e.retryable), after: (e && e.retryAfterMs) || 0 };
   }
 
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -2489,7 +3172,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       }else{
         servers.forEach(function(sv){
           var names = (sv.tools || []).map(function(t){ return t.name; });
-          lines.push((sv.server === MCP_SERVER ? '✅ ' : '• ') + '<b>' + esc(sv.server) + '</b>' +
+          lines.push((sv.server === MCP_SERVER || sv.server === CAL_SERVER ? '✅ ' : '• ') + '<b>' + esc(sv.server) + '</b>' +
             ' · 상태 ' + esc(sv.authStatus || '?') +
             ' · 도구 ' + names.length + '개' + (names.length ? ' (' + esc(names.join(', ')) + ')' : ''));
         });
@@ -2501,6 +3184,107 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }
   }
 
+  /* ─────────────── 📅 구글 캘린더 등록 (토큰 0) ───────────────
+     상태가 '예약 완료'(또는 '전화예약완료')이고 방문일이 있으면 그 자리에서 뷰어의 구글 캘린더 커넥터로 등록한다.
+     규칙은 docs/40 그대로: 제목 "[체험단] 업체명", 1시간 30분, 2시간 전 팝업, 지난 방문은 등록하지 않음,
+     재등록 방지는 calendar_event_id. 방문 시간이 바뀌면 같은 일정을 고친다 (calendar_synced_key 비교).
+     방문 시간이 비어 있으면 종일 일정으로 넣는다 (근거 없는 판단값 — 시간을 넣으면 그때 1시간 30분으로 고쳐진다). */
+  var calBusy = {};
+  function isBooked(c){ return stageOf(c) === 'booked'; }
+  function calKey(c){ return (c.visit_date || '') + 'T' + (c.visit_time || ''); }
+  function calNeeds(c){
+    if(!c || !isBooked(c) || !c.visit_date) return '';
+    var n = daysUntil(c.visit_date);
+    if(n === null || n < 0) return '';
+    if(!c.calendar_event_id) return 'create';
+    if(c.calendar_synced_key && c.calendar_synced_key !== calKey(c)) return 'update';
+    return '';
+  }
+  function kstStamp(dateStr, hm, addMin){
+    var p = String(hm || '00:00').split(':');
+    var d = new Date(dateStr + 'T00:00:00');
+    d.setMinutes((+p[0]) * 60 + (+p[1]) + (addMin || 0));
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00+09:00';
+  }
+  function calTimes(c){
+    if(!c.visit_time) return { allDay: true, startTime: kstStamp(c.visit_date, '00:00', 0), endTime: kstStamp(c.visit_date, '00:00', 24 * 60) };
+    return { startTime: kstStamp(c.visit_date, c.visit_time, 0), endTime: kstStamp(c.visit_date, c.visit_time, 90) };
+  }
+  function calDescription(c){
+    // offer 가 없으면 note 의 앞부분(체험 조건 원문)만 쓴다. 🤖📁📅 같은 자동화 기록 줄부터는 자른다.
+    var raw = c.offer || (c.note || '').split(' / 초안 자동생성')[0] || '';
+    var kept = []; String(raw).split('\n').some(function(l){ if(/^\s*[🤖📁📅✍️⚡✏️⚠️✅]/.test(l)) return true; kept.push(l); return false; });
+    var offer = kept.join('\n').trim().slice(0, 600);
+    var lines = [];
+    if(c.platform) lines.push('플랫폼: ' + c.platform);
+    if(offer) lines.push('받는 것: ' + offer);
+    if(c.due) lines.push('업로드 마감: ' + c.due);
+    if(c.due && c.visit_date && c.due < c.visit_date) lines.push('⚠️ 마감일이 방문일보다 빨라요');
+    if(c.reserve_phone) lines.push('예약 연락처: ' + c.reserve_phone);
+    if(c.photo_folder) lines.push('사진 폴더: ' + c.photo_folder);
+    if(c.link) lines.push('캠페인: ' + c.link);
+    lines.push('대시보드: https://claude.ai/artifact/2rKeYVVx1FnvDvkDd21m4U#camp/' + encodeURIComponent(c.id));
+    return lines.join('\n');
+  }
+  function pickId(p){
+    if(!p) return '';
+    if(typeof p === 'string'){ try{ p = JSON.parse(p); }catch(e){ return ''; } }
+    if(typeof p !== 'object') return '';
+    var ev = p.event || p.data || p;
+    return String(ev.id || ev.eventId || ev.event_id || '');
+  }
+  function pickLink(p){
+    if(!p || typeof p !== 'object') return '';
+    var ev = p.event || p.data || p;
+    return safeUrl(ev.htmlLink || ev.html_link || ev.link || '');
+  }
+  async function syncCalendar(id, manual){
+    var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
+    if(!c || calBusy[id] || !db) return;
+    var need = calNeeds(c);
+    if(!need){
+      if(manual) toast(!isBooked(c) ? '상태를 "예약 완료"로 바꾸면 등록할 수 있어요' : (!c.visit_date ? '방문일을 먼저 넣어주세요' : (daysUntil(c.visit_date) < 0 ? '지난 방문은 등록하지 않아요' : '이미 캘린더에 있어요')));
+      return;
+    }
+    await initKeywordMcp();
+    if(!mcpNs){ if(manual) toast('claude.ai 에서 대시보드를 열어야 캘린더에 등록할 수 있어요.'); return; }
+    if(need === 'update' && !/^[A-Za-z0-9_@.\-]{5,}$/.test(String(c.calendar_event_id))){
+      toast('방문 시간이 바뀌었어요. 이 일정은 캘린더에서 직접 고쳐주세요.');
+      return;
+    }
+    calBusy[id] = true;
+    var st = detailId === id ? document.getElementById('dCalState') : null;
+    if(st) st.textContent = need === 'update' ? '📅 캘린더 일정 고치는 중…' : '📅 캘린더에 등록하는 중…';
+    try{
+      var times = calTimes(c);
+      var input = Object.assign({ calendarId: CAL_ID, summary: '[체험단] ' + (coreName(c.name) || displayName(c) || '체험단'),
+        description: calDescription(c), timeZone: 'Asia/Seoul',
+        overrideReminders: [{ method: 'popup', minutes: 120 }], useDefaultReminders: false }, times);
+      var patch = { calendar_synced_at: Date.now(), calendar_synced_key: calKey(c) };
+      var res;
+      if(need === 'create'){
+        res = await mcpNs.callTool(CAL_SERVER, 'create_event', input, { cache: false });
+        var eid = pickId(res && res.payload);
+        patch.calendar_event_id = eid || 'registered';   // id 를 못 읽어도 재등록은 막는다
+        var lk = pickLink(res && res.payload); if(lk) patch.calendar_link = lk;
+        patch.note = ((c.note || '') + '\n📅 캘린더 등록 (' + localToday() + (eid ? '' : ', 일정 id 미확인') + ')').trim();
+      }else{
+        res = await mcpNs.callTool(CAL_SERVER, 'update_event', { calendarId: CAL_ID, eventId: c.calendar_event_id, startTime: times.startTime, endTime: times.endTime, timeZone: 'Asia/Seoul', description: calDescription(c) }, { cache: false });
+        patch.note = ((c.note || '') + '\n📅 캘린더 일정 변경 (' + localToday() + ', ' + fmtShort(c.visit_date) + (c.visit_time ? ' ' + c.visit_time : '') + ')').trim();
+      }
+      await db.doc('campaigns/' + id).update(patch);
+      toast(need === 'create' ? '구글 캘린더 "체험단"에 등록했어요 📅' : '캘린더 일정을 고쳤어요 📅');
+    }catch(e){
+      var f = mcpFix(e, CAL_SERVER);
+      toast('캘린더 등록 실패 — ' + f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''));
+      if(st) st.textContent = '캘린더 등록 실패 (' + f.code + ')' + (e && e.message ? ' · ' + e.message : '');
+      calBusy[id] = false;
+      return;
+    }
+    calBusy[id] = false;
+    if(detailId === id && lastDetail) fillDetail(lastDetail);
+  }
+
   document.getElementById('kwForm').addEventListener('submit', function(e){
     e.preventDefault();
     kwLookup();
@@ -2509,6 +3293,821 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var b = e.target.closest('button[data-kw]');
     if(b) kwLookup(b.dataset.kw);
   });
+
+  /* ─────────────── 👤 내 정보: 내가 쓰는 제품 · 다녀온 여행 ───────────────
+     신제품 글은 "내가 쓰는 제품과 비교", 여행 글은 "다녀온 곳의 내 경험"으로 쓰게 하는 재료다.
+     여기 적힌 것만 초안에 1인칭 경험으로 들어간다 (buildFeedPrompt → profilePromptBlock).
+     저장: gear/{id}, trips/{id} */
+  var gearList = [], tripList = [];
+  var meTimers = {}, meFlush = {};
+  var GEAR_CATS = ['핸드폰','세탁기','건조기','로봇청소기','청소기','냉장고','TV','에어컨','기타 가전','가구','기타'];
+  var GEAR_FIELDS = [
+    { k:'cat',   label:'분류', type:'select' },
+    { k:'name',  label:'제품명 (모델까지)', type:'text', ph:'예) 아이폰16 프로 256GB' },
+    { k:'since', label:'쓴 기간', type:'text', ph:'예) 2024년 10월부터' },
+    { k:'note',  label:'써보니 어때요? (좋은 점 · 아쉬운 점)', type:'textarea', full:true, ph:'예) 배터리가 하루를 못 가요. 카메라는 만족.' }
+  ];
+  var TRIP_FIELDS = [
+    { k:'place', label:'여행지', type:'text', ph:'예) 교토' },
+    { k:'when',  label:'언제', type:'text', ph:'예) 2025년 4월' },
+    { k:'days',  label:'기간', type:'text', ph:'예) 3박4일' },
+    { k:'with',  label:'누구와', type:'text', ph:'예) 혼자, 친구' },
+    { k:'stay',  label:'숙소 · 교통', type:'text', full:true, ph:'예) 가와라마치 호텔, 공항에서 하루카 특급' },
+    { k:'spots', label:'가본 곳 · 먹은 것', type:'textarea', full:true, ph:'예) 후시미이나리 새벽에 감. 니시키시장 두부 도넛.' },
+    { k:'tip',   label:'팁 · 아쉬웠던 점 · 비용', type:'textarea', full:true, ph:'예) 버스가 너무 붐볐어요. 1일 교통비 얼마쯤.' }
+  ];
+
+  var CHAN_FIELDS = [
+    { k:'name', label:'채널 이름', type:'text', ph:'예) 엄미 매거진' },
+    { k:'cat',  label:'카테고리 (그 탭에 버튼이 생겨요)', type:'select', options:['없음','연예인·명품','패션 코디','명소·축제','코스트코·다이소','가전·가구','핸드폰','여행','OTT','컬리'] },
+    { k:'url',  label:'주소', type:'text', full:true, ph:'https://www.instagram.com/계정명/' }
+  ];
+  var chanList = [], chanCheck = null;
+
+  function newestFirst(a, b){ return (b.created_at || 0) - (a.created_at || 0); }
+
+  function meFieldHtml(col, id, f, v){
+    var did = 'me_' + col + '_' + id + '_' + f.k;
+    var attrs = ' id="' + esc(did) + '" data-col="' + col + '" data-id="' + esc(id) + '" data-k="' + f.k + '"';
+    var input;
+    if(f.type === 'select'){
+      var cats = (f.options || GEAR_CATS).slice();
+      if(v && cats.indexOf(v) < 0) cats.unshift(v);
+      input = '<select' + attrs + '>' + cats.map(function(c){ return '<option' + (c === v ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>';
+    }else if(f.type === 'textarea'){
+      input = '<textarea' + attrs + ' rows="2" placeholder="' + esc(f.ph || '') + '">' + esc(v || '') + '</textarea>';
+    }else{
+      input = '<input' + attrs + ' type="text" value="' + esc(v || '') + '" placeholder="' + esc(f.ph || '') + '" autocomplete="off">';
+    }
+    return '<div class="f' + (f.full ? ' full' : '') + '"><label for="' + esc(did) + '">' + esc(f.label) + '</label>' + input + '</div>';
+  }
+
+  function meCardHtml(col, row, fields){
+    return '<div class="panel me-row"><div class="grid">' +
+      fields.map(function(f){ return meFieldHtml(col, row.id, f, row[f.k]); }).join('') +
+      '</div><div class="c-actions"><button type="button" class="btn-danger" data-me-del="' + col + '" data-id="' + esc(row.id) + '">삭제</button></div></div>';
+  }
+
+  function renderMe(force){
+    var root = document.getElementById('meSection');
+    if(!root || root.hidden) return;
+    var ae = document.activeElement;
+    // 입력 중에는 다시 그리지 않는다 (타이핑이 끊긴다)
+    if(!force && ae && root.contains(ae) && ae.dataset && ae.dataset.col && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    document.getElementById('gearList').innerHTML = gearList.length
+      ? gearList.map(function(g){ return meCardHtml('gear', g, GEAR_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 제품 추가"로 지금 쓰는 핸드폰·가전을 적어주세요.</div>';
+    document.getElementById('tripList').innerHTML = tripList.length
+      ? tripList.map(function(t){ return meCardHtml('trips', t, TRIP_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 여행 추가"로 다녀온 곳을 적어주세요.</div>';
+    document.getElementById('chanList').innerHTML = chanList.length
+      ? chanList.map(function(c){ return meCardHtml('channels', c, CHAN_FIELDS); }).join('')
+      : '<div class="save-status">아직 없어요. 아래 "+ 채널 추가"로 자주 보는 계정을 적어주세요.</div>';
+    document.getElementById('chanCount').textContent = chanList.length ? chanList.length + '개' : '';
+    document.getElementById('celebChips').innerHTML = celebList.length
+      ? celebList.map(function(c){
+          return '<span class="plat" style="display:inline-flex;align-items:center;gap:6px">' + esc(c.name) +
+                 '<button type="button" class="btn-link" style="padding:0" data-celeb-del="' + esc(c.id) + '" aria-label="' + esc(c.name) + ' 삭제">×</button></span>'; }).join('')
+      : '<div class="save-status">아직 없어요. 위에 이름을 넣어주세요.</div>';
+    document.getElementById('celebCount').textContent = celebList.length ? celebList.length + '명' : '';
+    document.getElementById('gearCount').textContent = gearList.length ? gearList.length + '개' : '';
+    document.getElementById('tripCount').textContent = tripList.length ? tripList.length + '곳' : '';
+  }
+
+  async function meAdd(col){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요. 잠시 후 다시 시도해주세요.'); return; }
+    var id = (col === 'gear' ? 'g' : (col === 'trips' ? 't' : 'c')) + Date.now().toString(36);
+    var now = Date.now();
+    var row = col === 'gear'
+      ? { cat:'핸드폰', name:'', since:'', note:'' }
+      : (col === 'trips'
+        ? { place:'', when:'', days:'', with:'', stay:'', spots:'', tip:'' }
+        : { name:'', cat:'없음', url:'' });
+    row.created_at = now; row.updated_at = now;
+    try{
+      await db.doc(col + '/' + id).set(row);
+      setTimeout(function(){
+        if(col === 'channels'){ var cf = document.getElementById('chanFold'); if(cf) cf.open = true; }   // 새 칸이 접힌 안에 있으면 안 보이니 펼친다
+        renderMe(true);
+        var el = document.getElementById('me_' + col + '_' + id + '_' + (col === 'trips' ? 'place' : 'name'));
+        if(el) el.focus();
+      }, 350);
+    }catch(err){
+      toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
+    }
+  }
+
+  function onMeInput(e){
+    var el = e.target, col = el && el.dataset && el.dataset.col;
+    if(!col || !db) return;
+    if(e.type === 'change' && el.tagName !== 'SELECT') return;
+    var id = el.dataset.id, k = el.dataset.k, key = col + '/' + id + '/' + k;
+    var st = document.getElementById('meState');
+    if(st) st.textContent = '입력 중...';
+    clearTimeout(meTimers[key]);
+    var run = function(){
+      delete meFlush[key];
+      var patch = {}; patch[k] = el.value; patch.updated_at = Date.now();
+      db.doc(col + '/' + id).update(patch).then(function(){
+        if(st) st.textContent = '저장됨 · ' + nowHM();
+      }).catch(function(){ if(st) st.textContent = '저장 실패 — 다시 시도해주세요'; });
+    };
+    meFlush[key] = run;
+    meTimers[key] = setTimeout(run, el.tagName === 'SELECT' ? 0 : 700);
+  }
+
+  (function(){
+    var root = document.getElementById('meSection');
+    root.addEventListener('input', onMeInput);
+    root.addEventListener('change', onMeInput);
+    root.addEventListener('click', async function(e){
+      if(e.target.closest('#gearAdd')){ meAdd('gear'); return; }
+      if(e.target.closest('#tripAdd')){ meAdd('trips'); return; }
+      if(e.target.closest('#chanAdd')){ meAdd('channels'); return; }
+      var del = e.target.closest('[data-me-del]');
+      if(!del || !db) return;
+      var col = del.dataset.meDel, id = del.dataset.id;
+      var src = col === 'gear' ? gearList : (col === 'trips' ? tripList : chanList);
+      var row = src.filter(function(x){ return x.id === id; })[0] || {};
+      var name = (col === 'trips' ? row.place : row.name) || '이 항목';
+      if(!(await ask(name + '을(를) 삭제할까요?\n되돌릴 수 없어요.', '삭제', true))) return;
+      Object.keys(meTimers).forEach(function(k){ if(k.indexOf(col + '/' + id + '/') === 0){ clearTimeout(meTimers[k]); delete meFlush[k]; } });
+      try{ await db.doc(col + '/' + id).delete(); toast('삭제했어요'); }
+      catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
+    });
+    window.addEventListener('pagehide', function(){ Object.keys(meFlush).forEach(function(k){ clearTimeout(meTimers[k]); try{ meFlush[k](); }catch(e){} }); });
+  })();
+
+  /* ── 📡 확인할 채널: 홈에서 한 번에 열기 + 오늘 확인 기록 ──
+     window.open 은 뷰어에 따라 막히거나(null) 두 번째부터 팝업 차단될 수 있다. 막힌 개수를 알려주고 아래 링크로 열게 한다. */
+  function renderChannels(){
+    var el = document.getElementById('homeChannels');
+    if(!el) return;
+    var list = chanList.filter(function(c){ return safeUrl(c.url); });
+    if(!list.length){ el.innerHTML = ''; return; }
+    var last = (chanCheck && chanCheck.last_checked_at) || 0;
+    var lastD = last ? new Date(last) : null;
+    var doneToday = !!lastD && lastD.toDateString() === new Date().toDateString();
+    var stateTxt = doneToday ? '오늘 확인 완료 · ' + lastD.getHours() + ':' + pad(lastD.getMinutes())
+      : (lastD ? '마지막 확인 ' + (lastD.getMonth() + 1) + '/' + lastD.getDate() : '아직 확인 기록이 없어요');
+    el.innerHTML =
+      '<div class="sec-head"><span>📡 확인할 채널</span><span class="save-status">' + esc(stateTxt) + '</span></div>' +
+      '<div class="sec-list">' + list.map(function(c){
+        return '<div class="sec-item link-row"><a class="sec-t" href="' + esc(safeUrl(c.url)) + '" target="_blank" rel="noopener" data-chan="1">' + esc(c.name || hostOf(c.url)) + '</a>' +
+               '<span class="sec-p">' + esc((c.cat && c.cat !== '없음') ? c.cat : (c.use || '')) + '</span>' +
+               '<button type="button" class="btn-link" data-copy="' + esc(safeUrl(c.url)) + '">주소 복사</button></div>'; }).join('') + '</div>' +
+      '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm good" id="chanDone">✓ 오늘 확인 끝</button>' +
+        '<span class="save-status">채널 이름을 눌러 하나씩 열어요</span></div>';
+  }
+  document.getElementById('homeChannels').addEventListener('click', async function(e){
+    var cp = e.target.closest('[data-copy]');
+    if(cp){ copyString(cp.dataset.copy); return; }
+    var a = e.target.closest('a[data-chan]');
+    if(a){ a.style.opacity = '.55'; return; }
+    if(e.target.closest('#chanDone')){
+      if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+      try{ await db.doc('settings/channel_check').set({ last_checked_at: Date.now() }); toast('오늘 확인 끝으로 기록했어요'); }
+      catch(err){ toast('저장에 실패했어요. 다시 시도해주세요.'); }
+    }
+  });
+
+  /* ── 📎 쓸 링크: 보다가 쓰고 싶은 게시물을 모아두는 곳. Claude 가 여기서 읽어 주제를 정리한다. (DB: links) ── */
+  var linkListData = [];
+  function renderLinks(){
+    var el = document.getElementById('linkList');
+    if(!el) return;
+    var open = linkListData.filter(function(l){ return l.status !== 'done'; });
+    document.getElementById('linkCount').textContent = open.length ? open.length + '개 읽기 대기' : '';
+    var th = document.getElementById('toolsHint'); if(th) th.textContent = open.length ? '읽기 대기 ' + open.length : '';
+    el.innerHTML = open.slice(0, 30).map(function(l){
+      var memo = String(l.memo || '').replace(/\s+/g, ' ').trim();
+      return '<div class="sec-item link-row"><span class="sec-t">' + esc(l.cat || '') + '</span>' +
+        '<a class="sec-p" href="' + esc(safeUrl(l.url)) + '" target="_blank" rel="noopener">' + esc(hostOf(l.url) ? l.url.replace(/^https?:\/\/(www\.)?/, '') : l.url) + (memo ? ' · ' + esc(memo.slice(0, 40)) : '') + '</a>' +
+        '<button type="button" class="btn-link" data-link-del="' + esc(l.id) + '">삭제</button></div>'; }).join('');
+  }
+  /* 링크를 담으면 그 자리에서 TIDINGS 카드를 만든다.
+     페이지는 인스타를 직접 읽지 못한다(외부 접속 차단). 그래서 캡션(메모)이 있으면 그걸로 카드 내용을 바로 채우고,
+     없으면 "읽기 전" 카드로 만든 뒤 Claude 가 링크를 읽어 채운다. 읽기 전 카드는 초안 쓰기를 막는다. */
+  var LINK_CAT_KEY = { '연예인·명품':'celeb_fashion', '패션 코디':'fashion_coord', '명소·축제':'travel_spot', '코스트코·다이소':'costco_daiso',
+    '가전·가구':'appliance', '핸드폰':'phone', '여행':'travel_issue', 'OTT':'ott', '컬리':'kurly_pick' };
+  var NEED_READ_TXT = '아직 링크 내용을 읽지 못했어요. Claude에게 "쓸 링크 봐줘"라고 하면 강조·반전 포인트를 채워요.';
+  function parseJsonLoose(t){
+    var m = String(t || '').match(/\{[\s\S]*\}/);
+    if(!m) return null;
+    try{ return JSON.parse(m[0]); }catch(e){ return null; }
+  }
+  function linkCardPrompt(url, catLabel, memo){
+    return [
+      '너는 르나의 네이버 홈피드 글감 카드를 정리하는 조수야. 아래 게시물 캡션을 읽고 카드 내용을 채워.',
+      '',
+      '[카테고리] ' + catLabel,
+      '[링크] ' + url,
+      '[캡션·메모]',
+      String(memo).slice(0, 3000),
+      '',
+      '[규칙]',
+      '- 캡션에 있는 인물·브랜드·제품명·가격·날짜만 써. 없는 숫자나 사실을 지어내지 마.',
+      '- topic: 한 줄. 누구/무엇 + 아이템이 드러나게.',
+      '- emphasis: 글에서 강조할 포인트 1~2문장.',
+      '- twist: 궁금증을 만드는 반전·의문 포인트 1문장. 캡션에 있는 사실 범위 안에서.',
+      '- title_bait: 제목 후보 한 개. 괄호는 쓰지 마.',
+      '- 아래 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"topic":"","emphasis":"","twist":"","title_bait":""}'
+    ].join('\n');
+  }
+  async function makeCardFromLink(id, url, catLabel, memo){
+    var key = LINK_CAT_KEY[catLabel] || 'celeb_fashion';
+    var meta = CAT_META[key] || { label: catLabel };
+    var short = url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+    await db.doc('items/' + id).set({
+      date: localToday(), category_key: key, category: String(meta.label).replace(/^\S+\s/, ''),
+      topic: '(링크 확인 전) ' + short, emphasis: NEED_READ_TXT, twist: '', title_bait: '',
+      source_url: url, status: 'pending', origin: 'link', link_id: id, needs_read: true, created_at: Date.now()
+    });
+    if(memo && sampleFn && !sampleBlocked){
+      try{
+        var res = await sampleFn(linkCardPrompt(url, catLabel, memo), { cache: false });
+        var j = parseJsonLoose(res && res.text);
+        if(j && j.topic){
+          await db.doc('items/' + id).update({
+            topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''), needs_read: false });
+          await db.doc('links/' + id).update({ status: 'done' });
+          return 'filled';
+        }
+      }catch(e){
+        if(e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled' || e.code === 'capability_removed')) sampleBlocked = true;
+      }
+    }
+    return 'shell';
+  }
+  document.getElementById('linkForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var url = safeUrl(document.getElementById('linkUrl').value);
+    if(!url){ toast('https:// 로 시작하는 링크를 넣어주세요.'); return; }
+    if(linkListData.some(function(l){ return l.url === url && l.status !== 'done'; }) || allItems.some(function(i){ return i.source_url === url && i.origin === 'link'; })){ toast('이미 카드로 만들어 둔 링크예요'); return; }
+    var btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+    var cat = document.getElementById('linkCat').value, memo = document.getElementById('linkMemo').value.trim();
+    var id = 'l' + Date.now().toString(36);
+    try{
+      await db.doc('links/' + id).set({ url: url, cat: cat, memo: memo, status: 'new', card_id: id, created_at: Date.now() });
+      document.getElementById('linkUrl').value = ''; document.getElementById('linkMemo').value = '';
+      toast(memo ? '카드를 만들고 있어요…' : '카드를 만들었어요');
+      var r = await makeCardFromLink(id, url, cat, memo);
+      toast(r === 'filled' ? '카드를 만들었어요 (캡션 기반) 📎' : '카드를 만들었어요. 내용은 Claude에게 "쓸 링크 봐줘"라고 하면 채워요');
+    }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.'); }
+    btn.disabled = false;
+  });
+  document.getElementById('linkList').addEventListener('click', async function(e){
+    var d = e.target.closest('[data-link-del]'); if(!d || !db) return;
+    try{ await db.doc('links/' + d.dataset.linkDel).delete(); }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
+  });
+
+  /* ── ⭐ 연예인 후보 명단 + 이름 랭킹 ──
+     명단(DB: celebs)은 내 정보 탭에서 고친다. 랭킹(DB: settings/celeb_rank)은 명단 이름을 하나씩
+     keyword_volume 으로 조회해 검색량 순으로 세운 것이다. 조회는 뷰어의 커넥터로 나가서 Claude 토큰이 들지 않는다.
+     동명이인은 따로 거르지 않는다 (은아님 결정). */
+  var celebList = [], celebRank = null, celebBusy = false, celebProgress = '';
+  /* 📰 뉴스 보기 → 기사마다 🎯 주제선정 — 이름 옆 버튼을 누르면(DB: settings/celeb_topic, 눌린 상태가 남는다) 그 인물의 네이버 뉴스(news_mentions)를
+     목록으로 보여준다. 쓰고 싶은 기사 옆 🎯 주제선정을 누르면 Claude(sample)가 그 기사 하나로 글감을 정리해 연예인·명품 카드를 만든다.
+     뉴스 조회는 토큰 0, 기사 하나 정리할 때만 Claude 토큰이 든다. 사실은 기사 제목·요약에 있는 것만 쓴다. */
+  var celebTopics = {}, celebTopicBusy = {}, newsMaking = {};
+  function hasNewsCard(link){
+    return !!link && allItems.some(function(i){ return (i.origin === 'celeb' || i.origin === 'news' || i.origin === 'blog') && i.source_url === link && i.status !== 'posted'; });
+  }
+  function celebTopicPanel(name){
+    var t = celebTopics[name];
+    if(!t) return '';
+    var h = '<div class="kw-res kw-inline" style="width:100%">';
+    if(celebTopicBusy[name] || t.loading) return h + '<div class="save-status">' + esc(name) + ' 뉴스 찾는 중…</div></div>';
+    if(t.error) return h + '<div class="save-status">' + esc(t.error) + '</div></div>';
+    var items = t.items || [];
+    if(!items.length) return h + '<div class="save-status">최근 뉴스가 없어요.</div></div>';
+    h += '<div class="save-status" style="margin-bottom:6px">최근 뉴스 ' + items.length + '건 · ' + (t.outlet_count || 0) + '개 매체' + (t.fetched_at ? ' · ' + new Date(t.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준' : '') + ' · 쓰고 싶은 기사 옆 🎯를 누르세요</div>';
+    h += items.map(function(n, i){
+      var key = name + '|' + i, made = hasNewsCard(n.link), busy = !!newsMaking[key];
+      var when = n.pubDate ? new Date(n.pubDate) : null;
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + esc(n.title) + '</b>' +
+        '<small>' + esc(n.outlet || '') + (when && !isNaN(when) ? ' · ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + pad(when.getMinutes()) : '') +
+        (safeUrl(n.link) ? ' · <a href="' + esc(n.link) + '" target="_blank" rel="noopener">기사 열기</a>' : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" data-celebmk="' + esc(name) + '|' + i + '"' + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+    return h + '</div>';
+  }
+  function newsTopicPrompt(name, n, catLabel, kind){
+    var blog = kind === 'blog', w = blog ? '글' : '기사';
+    return [
+      '너는 르나의 네이버 홈피드(' + (catLabel || '연예인·명품') + ' 카테고리) 글감 카드를 정리하는 조수야. 아래 ' + (blog ? '다른 블로거의 글(제목·앞부분 요약) 하나에서 소재만 뽑아 글감으로 정리해. 그 글의 문장·표현은 따라 쓰지 마.' : '뉴스 기사 하나를 글감으로 정리해.'),
+      '', '[' + (catLabel ? '검색어' : '인물') + '] ' + name, '[' + w + ' 제목] ' + n.title, '[' + w + ' 요약] ' + n.description, '[' + (blog ? '블로거' : '매체') + '] ' + (n.outlet || ''),
+      '', '[규칙]',
+      '- 제목·요약에 있는 인물·브랜드·제품명·가격·날짜만 써. 없는 숫자나 사실을 지어내지 마. 요약에 없는 내용은 쓰지 마.' + (blog ? ' 블로거 개인의 후기·감상·평가는 사실로 쓰지 마.' : ''),
+      '- topic: 한 줄. 누구 + 무엇(브랜드·제품·장소)이 드러나게.',
+      '- emphasis: 글에서 강조할 포인트 1~2문장. twist: 궁금증을 만드는 반전·의문 1문장(' + w + ' 사실 범위 안에서). title_bait: 제목 후보 하나, 괄호 쓰지 마.',
+      '- 아래 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"topic":"","emphasis":"","twist":"","title_bait":""}'
+    ].join('\n');
+  }
+  async function saveCelebTopics(){
+    if(!db) return;
+    try{ await db.doc('settings/celeb_topic').set({ updated_at: Date.now(), names: celebTopics }); }catch(e){}
+  }
+  /* news_mentions 한 번 조회 (retryable 실패는 1회 재시도). 연예인·카테고리·키워드 뉴스가 같이 쓴다. */
+  async function mcpSearch(tool, q, sort){
+    await initKeywordMcp();
+    if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' };
+    var args = { query: q, display: 15, sort: sort || 'date' }, res;
+    try{ res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
+    catch(e){
+      var f0 = mcpFix(e);
+      if(f0.retryable){ await sleep(Math.min(f0.after || 2500, 15000) + Math.random() * 800); res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
+      else throw e;
+    }
+    var d = res && res.payload;
+    if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+    return d;
+  }
+  async function blogFetchRaw(q, sort){
+    var d = await mcpSearch('blog_search', q, sort || 'sim');
+    return { total: d.total || 0, items: (d.items || []).slice(0, 15).map(function(n){
+      return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), blogger: n.blogger || '', postdate: String(n.postdate || ''), readable: !!n.readable };
+    }) };
+  }
+  async function newsFetchRaw(q, sort){
+    var d = await mcpSearch('news_mentions', q, sort);
+    return { outlet_count: d.outlet_count || 0, items: (d.items || []).slice(0, 15).map(function(n){
+      return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), outlet: n.outlet || '', pubDate: n.pubDate || '' };
+    }) };
+  }
+  function blogListHtml(items, mkAttr, busyPrefix){
+    return items.map(function(n, i){
+      var d = /^\d{8}$/.test(n.postdate) ? n.postdate.slice(0, 4) + '.' + n.postdate.slice(4, 6) + '.' + n.postdate.slice(6) : n.postdate;
+      var made = hasNewsCard(n.link), busy = !!newsMaking[busyPrefix + i];
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(n.title) + '</a>' : esc(n.title)) + '</b>' +
+        '<small>' + esc(n.blogger || '') + (d ? ' · ' + esc(d) : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" ' + mkAttr(i) + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+  }
+  function blogAsItem(n){ return { title: n.title, description: n.description, link: n.link, outlet: n.blogger, pubDate: n.postdate }; }
+  function newsErr(e){ var f = mcpFix(e); return f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''); }
+  /* 기사 목록 HTML. mkAttr(i) 는 🎯 버튼에 붙일 data 속성, busyPrefix 는 정리 중 표시용 키. */
+  function newsListHtml(items, mkAttr, busyPrefix){
+    return items.map(function(n, i){
+      var made = hasNewsCard(n.link), busy = !!newsMaking[busyPrefix + i];
+      var when = n.pubDate ? new Date(n.pubDate) : null;
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + esc(n.title) + '</b>' +
+        '<small>' + esc(n.outlet || '') + (when && !isNaN(when) ? ' · ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + pad(when.getMinutes()) : '') +
+        (safeUrl(n.link) ? ' · <a href="' + esc(n.link) + '" target="_blank" rel="noopener">기사 열기</a>' : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" ' + mkAttr(i) + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+  }
+  async function toggleCelebTopic(name){
+    if(celebTopics[name]){                         // 눌린 상태 → 끄기
+      delete celebTopics[name]; renderCelebRank(); saveCelebTopics(); return;
+    }
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    celebTopics[name] = { loading: true }; celebTopicBusy[name] = true; renderCelebRank();
+    var out = { fetched_at: Date.now(), items: [] };
+    try{
+      var r = await newsFetchRaw(name, 'date');
+      out.outlet_count = r.outlet_count; out.items = r.items;
+    }catch(e){ out.error = newsErr(e); }
+    delete celebTopicBusy[name];
+    if(!celebTopics[name]) { renderCelebRank(); return; }   // 조회 중에 껐으면 그대로 둔다
+    celebTopics[name] = out;
+    renderCelebRank(); saveCelebTopics();
+  }
+  /* 기사 하나 → Claude 가 글감으로 정리 → items 카드. 연예인 랭킹(origin 'celeb')과 카테고리 뉴스(origin 'news')가 같이 쓴다. */
+  async function makeNewsCard(o){
+    var n = o.item, key = o.busyKey;
+    if(!n || !db || newsMaking[key]) return;
+    if(hasNewsCard(n.link)){ toast('이미 카드가 있어요'); return; }
+    if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
+    newsMaking[key] = true; o.rerender();
+    try{
+      var meta = CAT_META[o.catKey];
+      var catName = String(meta.label).replace(/^\S+\s/, '');
+      var res = await sampleFn(newsTopicPrompt(o.query, n, o.origin === 'celeb' ? '' : catName, o.kind), { cache: false });
+      var j = parseJsonLoose(res && res.text);
+      if(!j || !j.topic) throw new Error('parse');
+      var r = (celebRank && celebRank.rows || []).filter(function(y){ return y.name === o.query; })[0] || {};
+      await db.doc('items/n' + Date.now().toString(36)).set({
+        date: localToday(), category_key: o.catKey, category: catName,
+        topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''),
+        main_keyword: o.origin === 'celeb' ? o.query : (o.mainKw || ''), keyword_volume: o.origin === 'celeb' ? (Number(r.volume) || 0) : (Number(o.volume) || 0),
+        trend_note: o.query + (o.origin === 'celeb' && r.volume ? ' 월 ' + Number(r.volume).toLocaleString() + '회' : '') + (o.kind === 'blog' ? ' · 블로그: ' : ' · 뉴스: ') + n.title,
+        source_url: n.link || '', source_title: n.title || '', source_desc: n.description || '', source_outlet: n.outlet || '', source_pub: n.pubDate || '',
+        status: 'pending', origin: o.origin, needs_read: false, created_at: Date.now()
+      });
+      toast('주제 카드를 만들었어요. ' + catName + ' 탭에서 확인하세요');
+    }catch(err){
+      if(err && (err.code === 'not_granted' || err.code === 'sampling_disabled' || err.code === 'not_declared' || err.code === 'capability_disabled' || err.code === 'capability_removed')) sampleBlocked = true;
+      toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '카드를 만들지 못했어요. 다시 눌러주세요.');
+    }
+    delete newsMaking[key];
+    o.rerender();
+  }
+  function makeCelebCard(name, idx){
+    var n = ((celebTopics[name] || {}).items || [])[idx];
+    return makeNewsCard({ item: n, busyKey: name + '|' + idx, catKey: 'celeb_fashion', query: name, origin: 'celeb', rerender: renderCelebRank });
+  }
+
+
+  /* ── 📰 키워드 뉴스: 이번 주 추천 키워드·연관 키워드 옆 📰 → 그 키워드로 뉴스 조회, 기사 옆 🎯 주제선정 → 카드.
+     카테고리는 눌린 자리에서 정한다(추천 키워드 줄은 그 키워드의 카테고리, 카테고리 탭 안이면 그 탭, 카드 안이면 그 카드의 카테고리). ── */
+  var blogKw = {};   // 키워드 -> 블로그 검색 상태 (newsKw 와 같은 모양)
+  var newsKw = {};   // 키워드 -> {open, loading, error, items, outlet_count, fetched_at}
+  function newsKwSlot(q, cat){
+    var st = newsKw[q];
+    if(!st || !st.open) return '';
+    var h = '<div class="kw-news" data-catkey="' + esc(cat || '') + '" style="width:100%;margin:2px 0 8px">';
+    if(st.loading) h += '<div class="save-status">' + esc(q) + ' 뉴스 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(!(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else h += '<div class="save-status" style="margin-bottom:6px">"' + esc(q) + '" 최신 뉴스 ' + st.items.length + '건 · ' + (st.outlet_count || 0) + '개 매체 · 쓰고 싶은 기사 옆 🎯</div>' +
+      newsListHtml(st.items, function(i){ return 'data-kwnewsmk="' + esc(q) + '|' + i + '"'; }, 'kw|' + q + '|');
+    return h + '</div>';
+  }
+  function blogKwSlot(q, cat){
+    var st = blogKw[q];
+    if(!st || !st.open) return '';
+    var h = '<div class="kw-news" data-catkey="' + esc(cat || '') + '" style="width:100%;margin:2px 0 8px">';
+    if(st.loading) h += '<div class="save-status">' + esc(q) + ' 블로그 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(!(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else h += '<div class="save-status" style="margin-bottom:6px">"' + esc(q) + '" 블로그 ' + st.items.length + '건 (정확도순) · 쓰고 싶은 글 옆 🎯</div>' +
+      blogListHtml(st.items, function(i){ return 'data-kwblogmk="' + esc(q) + '|' + i + '"'; }, 'kb|' + q + '|');
+    return h + '</div>';
+  }
+  function refreshAllKw(){
+    renderKwPicks(); renderCelebRank();
+    document.querySelectorAll('.kw-res').forEach(function(el){
+      if(el._kwData && !el.classList.contains('kw-inline')) kwRender(el._kwData, el);
+    });
+  }
+  function newsCatOf(el){
+    var w = el.closest('.kw-news'); if(w && w.dataset.catkey) return w.dataset.catkey;
+    var kr = el.closest('.kw-res'); if(kr && kr.dataset.catkey) return kr.dataset.catkey;
+    var card = el.closest('.card[data-id]');
+    if(card){ var it = allItems.filter(function(x){ return x.id === card.dataset.id; })[0]; if(it && CAT_META[it.category_key]) return it.category_key; }
+    return NEWS_DEFAULT_Q[currentFilter] ? currentFilter : '';
+  }
+  async function toggleKwSearch(map, fetcher, q, sort){
+    var st = map[q] = map[q] || {};
+    if(st.open){ st.open = false; refreshAllKw(); return; }
+    st.open = true;
+    if(st.items && st.fetched_at && Date.now() - st.fetched_at < 300000){ refreshAllKw(); return; }
+    st.loading = true; st.error = ''; refreshAllKw();
+    try{
+      var r = await fetcher(q, sort);
+      st.outlet_count = r.outlet_count; st.items = r.items; st.fetched_at = Date.now();
+    }catch(e){ st.error = newsErr(e); }
+    st.loading = false; refreshAllKw();
+  }
+  function toggleKwNews(q){ return toggleKwSearch(newsKw, newsFetchRaw, q, 'date'); }
+  function toggleKwBlog(q){ return toggleKwSearch(blogKw, blogFetchRaw, q, 'sim'); }
+  document.addEventListener('click', function(e){
+    var kn = e.target.closest('[data-kwnews],[data-relnews]');
+    if(kn){ toggleKwNews(kn.dataset.kwnews || kn.dataset.relnews); return; }
+    var kb = e.target.closest('[data-kwblog]');
+    if(kb){ toggleKwBlog(kb.dataset.kwblog); return; }
+    var bk = e.target.closest('[data-kwblogmk]');
+    if(bk && !bk.disabled){
+      var bp = bk.dataset.kwblogmk.split('|'), bi = Number(bp.pop()), bq = bp.join('|');
+      var bcat = newsCatOf(bk);
+      if(!bcat){ toast('추천 키워드 줄이나 카테고리 탭 안에서 눌러주세요.'); return; }
+      var bst = blogKw[bq], bkd = kwOpen[bq] && kwOpen[bq].data;
+      var bpk = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === bq; })[0];
+      makeNewsCard({ item: bst && bst.items && blogAsItem(bst.items[bi]), busyKey: 'kb|' + bq + '|' + bi, catKey: bcat, query: bq, mainKw: bq,
+        volume: bkd ? bkd.total : (bpk ? bpk.volume : 0), origin: 'blog', kind: 'blog', rerender: refreshAllKw });
+      return;
+    }
+    var mk = e.target.closest('[data-kwnewsmk]');
+    if(mk && !mk.disabled){
+      var pr = mk.dataset.kwnewsmk.split('|'), i = Number(pr.pop()), q = pr.join('|');
+      var cat = newsCatOf(mk);
+      if(!cat){ toast('추천 키워드 줄이나 카테고리 탭 안에서 눌러주세요.'); return; }
+      var st = newsKw[q], kd = kwOpen[q] && kwOpen[q].data;
+      var pk = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === q; })[0];
+      makeNewsCard({ item: st && st.items && st.items[i], busyKey: 'kw|' + q + '|' + i, catKey: cat, query: q, mainKw: q,
+        volume: kd ? kd.total : (pk ? pk.volume : 0), origin: 'news', rerender: refreshAllKw });
+    }
+  });
+
+  /* ── 📰 카테고리 뉴스: 탭마다 그 카테고리 검색어로 네이버 뉴스를 조회하고, 기사마다 🎯 주제선정.
+     검색어 기본값은 임의로 정한 값(근거 없는 판단값)이다. 칩으로 바로 고르거나 직접 입력한다. 이번 주 추천 키워드(keyword_picks)도 칩으로 뜬다.
+     조회는 토큰 0, 🎯 로 기사 하나를 정리할 때만 Claude 토큰이 든다. 결과는 화면에만 두고 DB에는 저장하지 않는다. */
+  var NEWS_DEFAULT_Q = {
+    celeb_fashion: ['연예인 명품 가방', '연예인 공항패션'], fashion_coord: ['연예인 코디', '가을 패션 트렌드'],
+    travel_spot: ['단풍 명소', '지역 축제'], costco_daiso: ['코스트코 신상', '다이소 신상'],
+    appliance: ['신제품 가전', '로봇청소기'], phone: ['스마트폰 출시', '아이폰 신제품'],
+    travel_issue: ['국내여행 추천', '해외여행 항공권'], ott: ['넷플릭스 신작', '디즈니플러스 신작'], kurly_pick: ['컬리 신상', '컬리 추천']
+  };
+  var newsMode = 'news';   // 카테고리 뉴스 칸의 탭: 'news' | 'blog'
+  function nkey(cat){ return newsMode === 'blog' ? cat + '|blog' : cat; }
+  var newsHidden = {};   // catKey -> 뺀 기본 검색어 (DB: settings/news_queries)
+  var newsByCat = {};   // catKey -> {q, sort, loading, error, items, outlet_count, fetched_at}
+  function newsQueries(cat){
+    var seen = {}, out = [];
+    ((kwPicks && kwPicks.picks) || []).forEach(function(p){ if(LINK_CAT_KEY[p.category] === cat && p.kw && !seen[p.kw]){ seen[p.kw] = 1; out.push({ q: p.kw, pick: true }); } });
+    (NEWS_DEFAULT_Q[cat] || []).forEach(function(q){ if(!seen[q] && (newsHidden[cat] || []).indexOf(q) < 0){ seen[q] = 1; out.push({ q: q }); } });
+    return out;
+  }
+  function renderNews(){
+    var box = document.getElementById('newsBox'), cat = currentFilter;
+    if(!box || !NEWS_DEFAULT_Q[cat]) return;
+    var ae = document.activeElement;
+    if(ae && ae.id === 'newsInput') return;                         // 입력 중에는 다시 그리지 않는다
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] || { q: '', sort: blog ? 'sim' : 'date' };
+    var meta = CAT_META[cat];
+    var ttl = document.getElementById('newsTitle'); if(ttl) ttl.textContent = '📰 ' + String(meta.label).replace(/^\S+\s/, '') + ' 뉴스·블로그';
+    var ns = document.getElementById('newsState'); if(ns) ns.textContent = st.loading ? '조회 중…' : (st.fetched_at ? '"' + st.q + '" ' + (st.items || []).length + '건' : '');
+    var gone = (newsHidden[cat] || []).length;
+    var h = '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm' + (blog ? '' : ' primary') + '" data-newstab="news">📰 뉴스</button><button type="button" class="btn-sm' + (blog ? ' primary' : '') + '" data-newstab="blog">📝 블로그</button></div>' +
+      '<div class="draft-btns" style="margin-bottom:8px">' + newsQueries(cat).map(function(x){
+        var on = x.q === st.q ? ' primary' : '';
+        if(x.pick) return '<button type="button" class="btn-sm' + on + '" data-newsq="' + esc(x.q) + '">🔑 ' + esc(x.q) + '</button>';
+        return '<span class="btn-sm' + on + '" style="display:inline-flex;align-items:center;padding:0"><button type="button" data-newsq="' + esc(x.q) + '" style="border:none;background:none;font:inherit;color:inherit;cursor:pointer;padding:8px 4px 8px 12px">' + esc(x.q) + '</button>' +
+          '<button type="button" data-newsq-del="' + esc(x.q) + '" aria-label="' + esc(x.q) + ' 빼기" style="border:none;background:none;font:inherit;color:inherit;cursor:pointer;padding:8px 10px 8px 2px;opacity:.7">×</button></span>'; }).join('') +
+      (gone ? '<button type="button" class="btn-link" data-newsq-reset="1">뺀 검색어 되돌리기 (' + gone + ')</button>' : '') + '</div>' +
+      '<form class="kw-form" id="newsForm" style="margin-bottom:8px"><input id="newsInput" type="search" placeholder="검색어 직접 입력" value="' + esc(st.q) + '" autocomplete="off" enterkeyhint="search">' +
+        '<select id="newsSort" aria-label="정렬" style="font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:0 8px"><option value="date"' + (st.sort === 'date' ? ' selected' : '') + '>최신순</option><option value="sim"' + (st.sort === 'sim' ? ' selected' : '') + '>정확도순</option></select>' +
+        '<button type="submit"' + (st.loading ? ' disabled' : '') + '>조회</button></form>';
+    if(st.loading) h += '<div class="save-status">' + (blog ? '블로그' : '뉴스') + ' 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(st.fetched_at && !(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요.' + (blog ? ' 다른 블로거들이 이 주제를 어떻게 쓰는지 제목·요약으로 볼 수 있어요.' : ' 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.') + '</div>';
+    else if(blog){
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '정확도순') + ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + st.items.length + '건 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += blogListHtml(st.items, function(i){ return 'data-blogmk="' + i + '"'; }, 'cb|' + cat + '|');
+    }else{
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += newsListHtml(st.items, function(i){ return 'data-newsmk="' + i + '"'; }, 'cat|' + cat + '|');
+    }
+    box.innerHTML = h;
+  }
+  async function newsLookup(cat, q, sort){
+    q = String(q || '').trim();
+    if(!q){ toast('검색어를 넣어주세요.'); return; }
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] = { q: q, sort: sort || (blog ? 'sim' : 'date'), loading: true };
+    renderNews();
+    try{
+      var r = blog ? await blogFetchRaw(q, st.sort) : await newsFetchRaw(q, st.sort);
+      st.outlet_count = r.outlet_count; st.total = r.total; st.fetched_at = Date.now(); st.items = r.items;
+    }catch(e){ st.error = newsErr(e); }
+    st.loading = false;
+    renderNews();
+  }
+  async function saveNewsHidden(){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    try{ await db.doc('settings/news_queries').set({ updated_at: Date.now(), hidden: newsHidden }); }catch(e){ toast('저장하지 못했어요. 다시 시도해주세요.'); }
+  }
+  document.getElementById('newsBox').addEventListener('click', function(e){
+    var del = e.target.closest('[data-newsq-del]');
+    if(del){ (newsHidden[currentFilter] = newsHidden[currentFilter] || []).push(del.dataset.newsqDel); renderNews(); saveNewsHidden(); return; }
+    if(e.target.closest('[data-newsq-reset]')){ delete newsHidden[currentFilter]; renderNews(); saveNewsHidden(); return; }
+    var tab = e.target.closest('[data-newstab]');
+    if(tab){
+      var nm = tab.dataset.newstab; if(nm === newsMode) return;
+      newsMode = nm;
+      var prev = newsByCat[nm === 'blog' ? currentFilter : currentFilter + '|blog'];
+      if(!newsByCat[nkey(currentFilter)] && prev && prev.q) newsLookup(currentFilter, prev.q, nm === 'blog' ? 'sim' : 'date'); else renderNews();
+      return;
+    }
+    var q = e.target.closest('[data-newsq]');
+    if(q){ var cur = newsByCat[nkey(currentFilter)] || {}; newsLookup(currentFilter, q.dataset.newsq, cur.sort); return; }
+    var bmk = e.target.closest('[data-blogmk]');
+    if(bmk && !bmk.disabled){
+      var bcat = currentFilter, bi = Number(bmk.dataset.blogmk), bst = newsByCat[bcat + '|blog'];
+      makeNewsCard({ item: bst && bst.items && blogAsItem(bst.items[bi]), busyKey: 'cb|' + bcat + '|' + bi, catKey: bcat, query: bst && bst.q, origin: 'blog', kind: 'blog', rerender: renderNews });
+      return;
+    }
+    var mk = e.target.closest('[data-newsmk]');
+    if(mk && !mk.disabled){
+      var cat = currentFilter, i = Number(mk.dataset.newsmk), st = newsByCat[cat];
+      makeNewsCard({ item: st && st.items && st.items[i], busyKey: 'cat|' + cat + '|' + i, catKey: cat, query: st && st.q, origin: 'news', rerender: renderNews });
+    }
+  });
+  document.getElementById('newsBox').addEventListener('submit', function(e){
+    e.preventDefault();
+    var inp = document.getElementById('newsInput'), srt = document.getElementById('newsSort');
+    newsLookup(currentFilter, inp && inp.value, srt && srt.value);
+  });
+  document.getElementById('newsBox').addEventListener('change', function(e){
+    if(e.target.id !== 'newsSort') return;
+    var st = newsByCat[nkey(currentFilter)];
+    if(st && st.q) newsLookup(currentFilter, st.q, e.target.value);
+    else { newsByCat[nkey(currentFilter)] = { q: '', sort: e.target.value }; }
+  });
+  function renderCelebRank(){
+    var el = document.getElementById('homeCelebs'), st = document.getElementById('celebState');
+    if(!el) return;
+    var rows = (celebRank && celebRank.rows) || [];
+    var d = celebRank && celebRank.updated_at ? new Date(celebRank.updated_at) : null;
+    var state = celebBusy ? celebProgress
+      : (d ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()) +
+             ((celebRank.failed || []).length ? ' · 실패 ' + celebRank.failed.length : '') : '');
+    if(st) st.textContent = state;
+    el.innerHTML =
+      '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm primary" id="celebRefresh"' + ((celebBusy || !celebList.length) ? ' disabled' : '') + '>🔄 랭킹 갱신 (' + celebList.length + '명)</button>' +
+        '<span class="save-status">검색량 순 · 눌러서 조회</span></div>' +
+      (rows.length
+        ? '<div class="chk-list">' + rows.slice(0, 15).map(function(r, i){
+            var on = !!celebTopics[r.name];
+            return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(r.name) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
+              '<span class="mk">' + (i + 1) + '</span><span class="tx"><b>' + esc(r.name) + '</b><small>월 ' + Number(r.volume || 0).toLocaleString() + '회' + (r.trend ? ' · ' + esc(r.trend) : '') + '</small></span></button>' +
+              '<button type="button" class="btn-sm' + (on ? ' primary' : '') + '" data-celebtopic="' + esc(r.name) + '" aria-pressed="' + on + '">' + (on ? '📰 뉴스 닫기' : '📰 뉴스 보기') + '</button></div>' +
+              inlineKwSlot(r.name, 'celeb_fashion') + celebTopicPanel(r.name); }).join('') + '</div>'
+        : '<div class="save-status">아직 랭킹이 없어요. 내 정보 탭에서 명단을 확인하고 갱신을 눌러주세요.</div>');
+    fillInlineKw(el);
+  }
+  var HARD_MCP = ['server_not_connected','needs_reauth','not_in_manifest','not_granted','capability_disabled','capability_removed','consent_required','blocked_by_policy','selection_required'];
+  async function refreshCelebRank(){
+    if(celebBusy) return;
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var names = celebList.map(function(c){ return c.name; }).filter(Boolean);
+    if(!names.length){ toast('명단이 비어 있어요. 내 정보 탭에서 이름을 추가해주세요.'); return; }
+    await initKeywordMcp();
+    if(!mcpNs){ toast('claude.ai 에서 대시보드를 열어야 조회할 수 있어요.'); return; }
+    celebBusy = true;
+    var rows = [], failed = [], aborted = null;
+    for(var i = 0; i < names.length; i++){
+      celebProgress = (i + 1) + '/' + names.length + ' 조회 중…';
+      renderCelebRank();
+      try{
+        var res = await callKeyword(names[i], true);
+        var d = res && res.payload;
+        if(d && !d.error && typeof d.total === 'number'){
+          var t = d.trend && d.trend.icon && d.trend.trust !== '무시' ? d.trend.icon + ' ' + d.trend.label : '';
+          rows.push({ name: names[i], volume: d.total, trend: t });
+        }else failed.push(names[i]);
+      }catch(e){
+        failed.push(names[i]);
+        if(e && HARD_MCP.indexOf(e.code) >= 0){ aborted = mcpFix(e); break; }
+      }
+      await sleep(150);
+    }
+    celebBusy = false; celebProgress = '';
+    if(aborted){ renderCelebRank(); toast(aborted.msg + (aborted.fix ? ' ' + aborted.fix.replace(/<[^>]+>/g, '') : '')); return; }
+    if(!rows.length){ renderCelebRank(); toast('조회하지 못했어요. 잠시 후 다시 눌러주세요.'); return; }
+    rows.sort(function(a, b){ return b.volume - a.volume; });
+    try{
+      await db.doc('settings/celeb_rank').set({ updated_at: Date.now(), rows: rows, failed: failed });
+      toast('랭킹을 갱신했어요 ⭐ ' + rows.length + '명' + (failed.length ? ' (실패 ' + failed.length + ')' : ''));
+    }catch(err){ renderCelebRank(); toast('저장에 실패했어요. 다시 시도해주세요.'); }
+  }
+  document.getElementById('homeCelebs').addEventListener('click', function(e){
+    if(e.target.closest('#celebRefresh')){ refreshCelebRank(); return; }
+    var ct = e.target.closest('[data-celebtopic]');
+    if(ct){ toggleCelebTopic(ct.dataset.celebtopic); return; }
+    var cm = e.target.closest('[data-celebmk]');
+    if(cm){ if(!cm.disabled){ var pr = cm.dataset.celebmk.split('|'); makeCelebCard(pr[0], Number(pr[pr.length - 1])); } return; }
+    if(relatedJump(e)) return;
+    var b = e.target.closest('[data-pickkw]'); if(!b) return;
+    toggleInlineKw(b.dataset.pickkw);
+  });
+  document.getElementById('celebForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    var input = document.getElementById('celebInput');
+    var have = {}; celebList.forEach(function(c){ have[c.name] = 1; });
+    var names = [];
+    input.value.split(/[,，\n]/).forEach(function(n){ n = n.trim(); if(n && !have[n] && names.indexOf(n) < 0) names.push(n); });
+    if(!names.length){ toast('이미 있거나 비어 있어요'); return; }
+    var base = Date.now();
+    try{
+      await Promise.all(names.map(function(n, i){ return db.doc('celebs/c' + (base + i).toString(36)).set({ name: n, created_at: base + i }); }));
+      input.value = '';
+      toast(names.length + '명을 추가했어요');
+    }catch(err){ toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '추가에 실패했어요. 다시 시도해주세요.'); }
+  });
+  document.getElementById('celebChips').addEventListener('click', async function(e){
+    var d = e.target.closest('[data-celeb-del]'); if(!d || !db) return;
+    try{ await db.doc('celebs/' + d.dataset.celebDel).delete(); }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
+  });
+
+
+  /* ── 📮 발행 자동 감지 (2026-10-01, 은아님 요청) ──
+     중계 서버 blog_feed(내 블로그 RSS 최근 글, 토큰 0)를 받아, 초안은 있는데 발행 기록이 없는 홈피드 카드·체험단과
+     초안 첫 줄(제목)을 비교해 맞으면 posted_url·발행 시각을 채우고 발행으로 기록한다.
+     맞는 기준은 근거 없이 정한 값이다: 공백·기호를 뺀 제목이 같거나(1.0), 한쪽이 다른 쪽을 포함하고 짧은 쪽이 8자 이상(0.9),
+     아니면 2글자 조각 겹침(Dice)이 0.8 이상. 두 번째 후보와 점수 차가 0.05 미만이면 애매하다고 보고 건드리지 않는다.
+     한 글은 한 카드에만 붙는다. 페이지를 열면 한 번 자동으로 돌고, 홈의 📮 발행 확인으로 다시 돌릴 수 있다. */
+  var detectStarted = false, detectBusy = false;
+  function normTitle(t){ return String(t || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, ''); }
+  function titleOf(draft){
+    var lines = String(draft || '').split('\n');
+    for(var i = 0; i < lines.length; i++){ var l = lines[i].trim(); if(l) return l.replace(/^#+\s*/, ''); }
+    return '';
+  }
+  function titleScore(a, b){
+    a = normTitle(a); b = normTitle(b);
+    if(!a || !b) return 0;
+    if(a === b) return 1;
+    var sh = a.length <= b.length ? a : b, lg = sh === a ? b : a;
+    if(sh.length >= 8 && lg.indexOf(sh) >= 0) return 0.9;
+    function bg(x){ var m = {}, n = 0; for(var i = 0; i < x.length - 1; i++){ var k = x.slice(i, i + 2); m[k] = (m[k] || 0) + 1; n++; } return { m: m, n: n }; }
+    var A = bg(a), B = bg(b); if(!A.n || !B.n) return 0;
+    var inter = 0; Object.keys(A.m).forEach(function(k){ if(B.m[k]) inter += Math.min(A.m[k], B.m[k]); });
+    return 2 * inter / (A.n + B.n);
+  }
+  async function detectPublished(manual){
+    if(detectBusy) return;
+    var st = document.getElementById('detectState'), btn = document.getElementById('detectBtn');
+    var say = function(t){ if(st) st.textContent = t; };
+    if(!db || !campLoaded || !itemsLoaded){ if(manual) toast('아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    var cands = [];
+    allItems.forEach(function(i){ if(i.draft_content && !i.posted_url && i.status !== 'posted') cands.push({ kind: 'item', id: i.id, title: titleOf(i.draft_content), ref: i }); });
+    camps.forEach(function(c){ var sg = stageOf(c); if(c.draft_content && !c.posted_url && sg !== 'posted' && sg !== 'dropped' && sg !== 'closed') cands.push({ kind: 'camp', id: c.id, title: titleOf(c.draft_content), ref: c }); });
+    cands = cands.filter(function(c){ return c.title; });
+    if(!cands.length){ say(manual ? '발행 기록이 필요한 초안이 없어요' : st && st.textContent); return; }
+    detectBusy = true; if(btn) btn.disabled = true; say('내 블로그 최근 글을 확인하는 중…');
+    try{
+      await initKeywordMcp();
+      if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 확인할 수 있어요.' };
+      var res = await mcpNs.callTool(MCP_SERVER, 'blog_feed', { limit: 50 }, { cache: { staleTime: 300000 } });
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      var posts = (d.items || []).filter(function(x){ return x && x.title && safeUrl(x.link); });
+      var pairs = [];
+      cands.forEach(function(c){
+        var sc = posts.map(function(p, j){ return { j: j, s: titleScore(c.title, p.title) }; }).sort(function(a, b){ return b.s - a.s; });
+        var best = sc[0], second = sc[1];
+        if(best && best.s >= 0.8){
+          if(second && best.s - second.s < 0.05) pairs.push({ c: c, amb: true });
+          else pairs.push({ c: c, j: best.j, s: best.s });
+        }
+      });
+      var used = {}, matched = 0, amb = 0;
+      pairs.filter(function(x){ return !x.amb; }).sort(function(a, b){ return b.s - a.s; }).forEach(function(x){ if(!used[x.j]) used[x.j] = x; });
+      var writes = [];
+      Object.keys(used).forEach(function(j){
+        var x = used[j], p = posts[j], c = x.c, link = safeUrl(p.link);
+        var ts = Number(p.ts) || (p.published ? Date.parse(p.published) : 0) || Date.now();
+        if(c.kind === 'item'){
+          writes.push(db.doc('items/' + c.id).update({ posted_url: link, posted_at: ts, status: 'posted', status_updated_at: Date.now(), posted_auto: true }));
+        }else{
+          writes.push(db.doc('campaigns/' + c.id).update({ posted_url: link, posted_at: ts, status: '블로그 포스팅 완료', status_updated_at: Date.now(), blog_done: true,
+            note: ((c.ref.note || '') + '\n📮 발행 자동 감지 (' + localToday() + ', 제목 일치 ' + Math.round(x.s * 100) + '%)').trim() }));
+        }
+      });
+      amb = pairs.filter(function(x){ return x.amb; }).length;
+      await Promise.all(writes); matched = writes.length;
+      var t = matched ? matched + '건을 발행으로 기록했어요 📮' : '새로 발행된 글은 없어요';
+      if(amb) t += ' · 애매한 ' + amb + '건은 직접 확인해주세요';
+      say(t + ' · ' + nowHM() + ' 확인');
+      if(matched || manual) toast(t);
+    }catch(e){
+      say(newsErr(e));
+      if(manual) toast('발행을 확인하지 못했어요. ' + newsErr(e));
+    }
+    detectBusy = false; if(btn) btn.disabled = false;
+  }
+  document.getElementById('detectBtn').addEventListener('click', function(){ detectPublished(true); });
+
+  /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
+     제품은 여행 카드를 뺀 모든 카드에, 여행은 여행 카드에는 전부, 그 밖의 카드에는 주제에 지역명이 나올 때만 붙인다. */
+  function clip(s, n){ s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function profilePromptBlock(it){
+    var isTravel = /^travel/.test(it.category_key || '');
+    var hay = [it.topic, it.emphasis, it.twist, it.title_bait, it.main_keyword].join(' ');
+    var gear = isTravel ? [] : gearList.filter(function(g){ return String(g.name || '').trim(); });
+    var trips = tripList.filter(function(t){
+      var p = String(t.place || '').trim();
+      return p && (isTravel || hay.indexOf(p) >= 0);
+    }).slice(0, 10);
+    var memo = String(it.lena_note || '').trim();
+    if(!gear.length && !trips.length && !memo) return '';
+    var out = ['[내 정보 — 르나가 직접 적어둔 기록. 이 블록이 있으면 위 [1인칭 경험으로]의 "직접 보고 먹고 다녀온 것처럼"보다 이 블록이 우선이야]'];
+    if(gear.length){
+      out.push('[르나가 지금 쓰는 제품]');
+      gear.forEach(function(g){
+        out.push('- ' + [g.cat, g.name].filter(Boolean).join(': ') + (g.since ? ' (' + clip(g.since, 30) + ')' : '') + (g.note ? ' / ' + clip(g.note, 300) : ''));
+      });
+    }
+    if(trips.length){
+      out.push('[르나가 다녀온 여행]');
+      trips.forEach(function(t){
+        var head = [t.when, t.days, t.with].map(function(x){ return clip(x, 30); }).filter(Boolean).join(' · ');
+        out.push('- ' + clip(t.place, 30) + (head ? ' | ' + head : '') +
+          (t.stay ? ' | 숙소·교통: ' + clip(t.stay, 200) : '') +
+          (t.spots ? ' | 가본 곳·먹은 것: ' + clip(t.spots, 400) : '') +
+          (t.tip ? ' | 팁·아쉬움·비용: ' + clip(t.tip, 300) : ''));
+      });
+    }
+    if(memo) out.push('[이 카드에 대해 르나가 직접 적은 메모 — 적힌 범위 안에서만 1인칭으로 써도 돼]\n' + clip(memo, 1200));
+    out.push('[이 블록 쓰는 법]');
+    out.push('- 신제품·신상품·새로 나온 제품 글이면 "비교·정리형"으로 써. 르나는 그 신제품을 써보지 않았어. "써봤더니", "사용해보니", "직접 들어봤더니"처럼 써본 것처럼 말하지 마.');
+    out.push('- 대신 [주제 정보]의 스펙·가격과 위 "지금 쓰는 제품"을 나란히 놓고 "저는 ~를 쓰고 있는데 ~는 이게 달라요" 식으로 비교해. 지금 쓰는 제품 쪽 경험은 적어둔 내용 안에서 1인칭으로 써도 돼.');
+    out.push('- 위에 적히지 않은 제품·여행을 써본 것처럼, 다녀온 것처럼 쓰지 마. 기록에 없는 가격·날씨·맛·배터리 시간 같은 디테일도 지어내지 마.');
+    out.push('- 주제와 관련 없는 항목은 무시해. 관련 항목이 없으면 비교 없이 정보로만 써.');
+    out.push('- 여행 글에서 위 [르나가 다녀온 여행]에 같은 지역이 있으면, 그 기록에 있는 내용만 "저는 ~에 다녀왔는데"처럼 1인칭 경험으로 이어 붙이고 나머지는 정보로 써. 기록이 없는 지역은 다녀왔다고 쓰지 마.');
+    return out.join('\n');
+  }
 
   /* ─────────────── 라우팅 ─────────────── */
   function show(view){
@@ -2521,14 +4120,17 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('homeSection').hidden = sec !== 'home';
     document.getElementById('feedSection').hidden = sec !== 'feed';
     document.getElementById('campSection').hidden = sec !== 'camp';
+    document.getElementById('meSection').hidden = sec !== 'me';
     document.querySelectorAll('#seg button').forEach(function(b){ b.classList.toggle('active', b.dataset.sec === sec); });
     var t = { home:['🏠 르나 블로그 홈', '오늘 뭘 해야 하는지, 글이 어떻게 되고 있는지 한눈에 봐요.'],
               feed:['🔥 TIDINGS', '매일 아침 8시에 올라오는 주제 중 쓸 것을 골라주세요.'],
-              camp:['📝 EL.LIGHT', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'] }[sec] || [];
+              camp:['📝 EL.LIGHT', '예약부터 방문, 초안, 포스팅까지 한 곳에서 관리해요.'],
+              me:['👤 내 정보', '내가 쓰는 제품과 다녀온 여행을 적어두면 초안에 반영돼요.'] }[sec] || [];
     document.getElementById('mainTitle').textContent = t[0] || '';
     document.getElementById('mainDesc').textContent = t[1] || '';
     if(sec === 'camp') renderCamps();
     else if(sec === 'feed') render();
+    else if(sec === 'me') renderMe(true);
     else renderHome();
   }
   document.getElementById('seg').addEventListener('click', function(e){
@@ -2555,7 +4157,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     }
     teardownDetail();
     show('main');
-    setSection(h === 'camp' ? 'camp' : (h === 'feed' ? 'feed' : 'home'));
+    setSection(h === 'camp' ? 'camp' : (h === 'feed' ? 'feed' : (h === 'me' ? 'me' : 'home')));
   }
 
   function toList(res){
@@ -2607,6 +4209,71 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         var list = toList(res);
         kwPicks = list[0] || null;
         renderHome();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('gear').limit(200).onSnapshot(function(res){
+        gearList = toList(res).sort(newestFirst);
+        renderMe();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('trips').limit(200).onSnapshot(function(res){
+        tripList = toList(res).sort(newestFirst);
+        renderMe();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('channels').limit(200).onSnapshot(function(res){
+        chanList = toList(res).sort(function(a, b){ return (a.created_at || 0) - (b.created_at || 0); });
+        renderMe(); renderChannels(); updateCpaBar();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('links').limit(300).onSnapshot(function(res){
+        linkListData = toList(res).sort(newestFirst);
+        renderLinks();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.collection('celebs').limit(300).onSnapshot(function(res){
+        celebList = toList(res).sort(function(a, b){ return (a.created_at || 0) - (b.created_at || 0); });
+        renderMe(); renderCelebRank();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/celeb_rank').onSnapshot(function(snap){
+        celebRank = snap && snap.exists ? snap.data() : null;
+        renderCelebRank();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/news_queries').onSnapshot(function(snap){
+        newsHidden = snap && snap.exists ? (snap.data().hidden || {}) : {};
+        renderNews();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/celeb_topic').onSnapshot(function(snap){
+        var cur = snap && snap.exists ? (snap.data().names || {}) : {};
+        Object.keys(celebTopicBusy).forEach(function(k){ cur[k] = celebTopics[k]; });   // 조회 중인 건 화면 값 유지
+        celebTopics = cur;
+        renderCelebRank();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/channel_check').onSnapshot(function(snap){
+        chanCheck = snap && snap.exists ? snap.data() : null;
+        renderChannels();
       }, function(){});
     }catch(e){}
 
