@@ -1,0 +1,57 @@
+diff --git a/page_fetch.py b/page_fetch.py
+index 7247ac8..deda168 100644
+--- a/page_fetch.py
++++ b/page_fetch.py
+@@ -5,6 +5,7 @@ Chromium/Playwright 를 쓸 수 없다. 그래서 헤드리스 브라우저 대
+ "단순 GET → 사이트별 내부 JSON API" 순서로 받는다.
+ """
+ import ipaddress
++import os
+ import re
+ import socket
+ import time
+@@ -143,7 +144,43 @@ def _revu(url: str, deadline: float) -> Optional[Dict[str, str]]:
+     return {"title": title, "text": body} if body.strip() else None
+ 
+ 
+-SITE_HANDLERS = (_whogiup, _revu)
++def _reviewnote(url: str, deadline: float) -> Optional[Dict[str, str]]:
++    """리뷰노트 캠페인 상세. 비로그인에게는 로그인 벽이라(2026-10-02 확인) 르나의 로그인 쿠키가 필요하다.
++    Render 환경변수 REVIEWNOTE_COOKIE 에 브라우저의 Cookie 헤더 값(세미콜론으로 이어진 문자열)을 그대로 넣는다.
++    쿠키가 없거나 만료(401)면 None 을 돌려 기존 SPA 오류 메시지로 떨어진다. 응답 필드 이름은 ⚠️미검증이라
++    문자열 값은 전부 모아 본문으로 만든다."""
++    m = re.search(r"/campaigns/(\d+)", url)
++    cookie = os.getenv("REVIEWNOTE_COOKIE", "").strip()
++    if not m or not cookie or "reviewnote.co.kr" not in url:
++        return None
++    r = _request("GET", f"https://www.reviewnote.co.kr/api/campaign?id={m.group(1)}", deadline,
++                 headers={"Cookie": cookie, "Accept": "application/json", "Referer": url})
++    if r.status_code == 401:
++        raise PageError("리뷰노트 쿠키가 만료됐습니다. REVIEWNOTE_COOKIE 를 새로 넣어주세요.", 403)
++    d = r.json()
++    c = d.get("data") or d.get("campaign") or d
++    if not isinstance(c, dict):
++        return None
++    parts = []
++    def walk(o, depth=0):
++        if depth > 3:
++            return
++        if isinstance(o, dict):
++            for k, v in o.items():
++                if isinstance(v, str) and len(v) >= 2 and not v.startswith("http"):
++                    parts.append(f"{k}: {_clean_text(v)}")
++                elif isinstance(v, (dict, list)):
++                    walk(v, depth + 1)
++        elif isinstance(o, list):
++            for v in o[:50]:
++                walk(v, depth + 1)
++    walk(c)
++    title = c.get("title") or c.get("name") or c.get("campaignName") or ""
++    text = "\n".join(parts)
++    return {"title": title, "text": text} if len(text) >= MIN_BODY else None
++
++
++SITE_HANDLERS = (_whogiup, _revu, _reviewnote)
+ 
+ 
+ def _extract(url: str, deadline: float) -> Dict[str, str]:
