@@ -349,6 +349,11 @@
   /* 추천 키워드 줄은 버튼이 4개(주제 선정·다른 키워드·뉴스·블로그)라 좁은 화면에서는 키워드 이름 아래 줄로 내린다 */
   #homeKw .pick-row{ flex-wrap:wrap; }
   #homeKw .pick-row > .chk{ flex:1 1 150px; }
+  /* 키워드 줄 버튼은 한 묶음(.pick-btns): 넓으면 키워드 박스 오른쪽, 좁으면 통째로 아래 줄 */
+  .pick-btns{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .pick-row > .pick-btns{ flex:0 1 auto; min-width:0; max-width:100%; align-self:center; }
+  #pickleBox .pick-row{ flex-wrap:wrap; }
+  #pickleBox .pick-row > .chk{ flex:1 1 240px; min-width:0; }
   @media (max-width:600px){ #homeKw .pick-row > .chk{ flex-basis:100%; } }
   .card-x{ border:none; background:none; color:var(--sub); font-size:17px; line-height:1; cursor:pointer; padding:2px 4px; }
   .card-x:hover{ color:var(--danger-ink); }
@@ -2795,8 +2800,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
             var has = hasKwCard(p.kw);
             return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
               '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' +
-              '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
-              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '<button type="button" class="btn-sm' + (newsKw[p.kw] && newsKw[p.kw].open ? ' primary' : '') + '" data-kwnews="' + esc(p.kw) + '">📰 뉴스</button><button type="button" class="btn-sm' + (blogKw[p.kw] && blogKw[p.kw].open ? ' primary' : '') + '" data-kwblog="' + esc(p.kw) + '">📝 블로그</button></div>' + inlineKwSlot(p.kw, LINK_CAT_KEY[p.category]) + newsKwSlot(p.kw, LINK_CAT_KEY[p.category]) + blogKwSlot(p.kw, LINK_CAT_KEY[p.category]);
+              '<div class="pick-btns"><button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
+              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '<button type="button" class="btn-sm' + (newsKw[p.kw] && newsKw[p.kw].open ? ' primary' : '') + '" data-kwnews="' + esc(p.kw) + '">📰 뉴스</button><button type="button" class="btn-sm' + (blogKw[p.kw] && blogKw[p.kw].open ? ' primary' : '') + '" data-kwblog="' + esc(p.kw) + '">📝 블로그</button></div></div>' + inlineKwSlot(p.kw, LINK_CAT_KEY[p.category]) + newsKwSlot(p.kw, LINK_CAT_KEY[p.category]) + blogKwSlot(p.kw, LINK_CAT_KEY[p.category]);
           }).join('');
       }).join('');
     fillInlineKw(kwEl);
@@ -4011,12 +4016,12 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   function pickleRow(kw, cat, sub){
     var has = hasKwCard(kw);
-    // 버튼 3개가 한 줄에 붙으면 폰에서 키워드가 세로로 찌그러진다. 키워드 줄 아래로 버튼을 내린다.
-    return '<div class="pick-row" style="flex-wrap:wrap"><button type="button" class="chk" data-pickkw="' + esc(kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;flex:1 1 100%">' +
+    // 넓은 화면에서는 키워드 박스 오른쪽에 버튼 3개가 한 줄로 붙고, 폭이 모자라면(폰) 버튼이 키워드 아래 줄로 내려간다(CSS #pickleBox .pick-row).
+    return '<div class="pick-row" style="flex-wrap:wrap"><button type="button" class="chk" data-pickkw="' + esc(kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
       '<span class="mk">🔑</span><span class="tx"><b>' + esc(kw) + '</b><small>' + esc(sub ? sub + ' · 눌러서 검색량 조회' : '눌러서 검색량 조회') + '</small></span></button>' +
-      '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-picklemk="' + esc(kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
+      '<div class="pick-btns"><button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-picklemk="' + esc(kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
       '<button type="button" class="btn-sm' + (newsKw[kw] && newsKw[kw].open ? ' primary' : '') + '" data-kwnews="' + esc(kw) + '">📰 뉴스</button>' +
-      '<button type="button" class="btn-sm' + (blogKw[kw] && blogKw[kw].open ? ' primary' : '') + '" data-kwblog="' + esc(kw) + '">📝 블로그</button></div>' +
+      '<button type="button" class="btn-sm' + (blogKw[kw] && blogKw[kw].open ? ' primary' : '') + '" data-kwblog="' + esc(kw) + '">📝 블로그</button></div></div>' +
       inlineKwSlot(kw, cat) + newsKwSlot(kw, cat) + blogKwSlot(kw, cat);
   }
   function linkify(t){ return esc(t).replace(/https?:\/\/[^\s<"']+/g, function(u){ return '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'; }); }
