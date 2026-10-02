@@ -1472,7 +1472,7 @@
   }
   function reserveActionsHtml(c){
     var tel = String(c.reserve_phone || '').replace(/[^0-9+]/g, '');
-    var info = c.auto_status === 'pending' || !c.name ? '⏳ 기본 정보 아직 전' : (c.auto_status === 'failed' ? '⚠️ 링크 못 읽음 · 열어서 확인' : '');
+    var info = '';
     return '<div class="c-actions" style="margin-top:8px"><span class="hint">' + esc(info) + '</span>' +
       (tel ? '<a class="btn-sm" href="tel:' + esc(tel) + '" style="text-decoration:none">📞 ' + esc(c.reserve_phone) + '</a>' : '<span class="hint" style="flex:none">예약 번호 없음</span>') +
       '<button type="button" class="btn-sm" data-sms="1">📱 문자 문구 복사</button></div>';
@@ -1564,7 +1564,6 @@
   function campCardHtml(c){
     var s = stageOf(c);
     var na = nextAction(c);
-    if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
     if(c.product_review) meta.push('<b>제품 리뷰</b>');
     if(c.visit_date) meta.push('방문 <b>' + esc(fmtShort(c.visit_date)) + (c.visit_time ? ' ' + esc(c.visit_time) : '') + '</b>' + (c.calendar_event_id ? ' 📅' : ''));
@@ -1803,16 +1802,19 @@
   }
   async function lookupPlace(c){
     if(!c || c.template === 's_derm' || (c.types || []).indexOf('피부과') >= 0) return null;
-    var q = placeQuery(c); if(!q) return null;
+    // 캠페인 페이지에서 받은 주소·전화가 있으면 그걸 먼저 쓴다 (2026-10-03, 토큰 0·정확). 둘 중 하나만 있으면 지역검색으로 나머지를 보탠다.
+    var own = { title: coreName(c.name), address: c.address || '', jibun: '', phone: c.phone || '', category: '', link: '' };
+    if(own.address && own.phone) return own;
+    var q = placeQuery(c); if(!q) return own.address || own.phone ? own : null;
     await initKeywordMcp();
     if(!mcpNs) return null;
     try{
       var res = await mcpNs.callTool(MCP_SERVER, 'place_lookup', { name: q }, { cache: { staleTime: 86400000 } });
       var d = res && res.payload;
       if(typeof d === 'string'){ try{ d = JSON.parse(d); }catch(e){ return null; } }
-      if(!d || typeof d !== 'object' || d.error || !(d.roadAddress || d.address || d.phone)) return null;
-      return { title: d.title || '', address: d.roadAddress || d.address || '', jibun: d.roadAddress && d.address ? d.address : '', phone: d.phone || '', category: d.category || '', link: d.link || '' };
-    }catch(e){ return null; }
+      if(!d || typeof d !== 'object' || d.error || !(d.roadAddress || d.address || d.phone)) return own.address || own.phone ? own : null;
+      return { title: d.title || own.title, address: own.address || d.roadAddress || d.address || '', jibun: own.address ? '' : (d.roadAddress && d.address ? d.address : ''), phone: own.phone || d.phone || '', category: d.category || '', link: d.link || '' };
+    }catch(e){ return own.address || own.phone ? own : null; }
   }
   function buildPromptGenPrompt(c, place){
     var list = Object.keys(templates).map(function(k){
@@ -1831,6 +1833,7 @@
       '유형(참고, 틀릴 수 있음): ' + ((c.types || []).join(', ') || '없음'),
       '제공 내역·체험 조건: ' + String(c.offer || c.note || '없음').slice(0, 1200),
       '업체 요청 키워드: ' + String(c.keywords || '없음').slice(0, 300),
+      c.address ? '업체 주소(캠페인 페이지): ' + String(c.address).slice(0, 120) : '',
       '체험단 미션·가이드: ' + String(c.mission || '없음').slice(0, 600),
       c.raw ? '캠페인 페이지 원문(르나가 붙여넣음 — 위 항목이 비어 있으면 여기서 찾아 쓴다):\n' + String(c.raw).slice(0, 4000) : '',
       '받은 것(르나 기록): ' + String(c.received || '아직 없음').slice(0, 400),
@@ -1865,6 +1868,64 @@
     ].join('\n');
   }
 
+
+  /* ── 📥 캠페인 페이지 → 📌 기본 정보 (2026-10-03 르나 요청 "기본 정보 토큰 0") ──
+     중계 서버 campaign_info(뷰어 커넥터, Claude 토큰 0)가 사이트별로 업체명·마감·지원금·제공 내역·키워드·미션·주소·전화를 뽑아 준다.
+     지원: 리뷰노트·레뷰(서버에 둔 인증값)·후기업·포포몬·디너의여왕·링블·강남맛집. 비어 있는 칸만 채운다(르나가 적은 값은 덮지 않음).
+     새 체험단을 링크로 추가할 때와, 이름이 빈 체험단을 열 때 한 번 자동으로 돌고, 📌 패널의 "📥 다시 읽기"로 다시 돌릴 수 있다.
+     프롬프트는 여전히 ⚡ 또는 월~목 루틴(Claude)이 쓴다. */
+  var infoBusy = {}, infoTried = {};
+  function infoPatchFrom(c, d){
+    var p = {};
+    if(d.name && !c.name) p.name = String(d.name).trim();
+    if(d.platform && !c.platform) p.platform = String(d.platform);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(d.due || '')) && !c.due) p.due = d.due;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(d.announce || '')) && !c.announce) p.announce = d.announce;
+    if(Number(d.amount) > 0 && !(Number(c.amount) > 0)) p.amount = Math.round(Number(d.amount));
+    ['offer', 'keywords', 'mission', 'address', 'phone', 'reserve_phone'].forEach(function(k){ if(d[k] && String(d[k]).trim() && !(c[k] && String(c[k]).trim())) p[k] = String(d[k]).trim(); });
+    if(Array.isArray(d.types) && d.types.length && !(c.types || []).length) p.types = d.types.slice(0, 3);
+    return p;
+  }
+  async function fetchCampaignInfo(id, manual){
+    var c = camps.find(function(x){ return x.id === id; }) || (lastDetail && lastDetail.id === id ? lastDetail : null);
+    if(!c || infoBusy[id] || !db) return;
+    var link = safeUrl(c.link);
+    if(!link){ if(manual) toast('캠페인 링크가 없어요. 📌 기본 정보에 링크부터 넣어주세요.'); return; }
+    await initKeywordMcp();
+    if(!mcpNs){ if(manual) toast('claude.ai 에서 대시보드를 열어야 읽을 수 있어요.'); return; }
+    infoBusy[id] = true;
+    var st = detailId === id ? document.getElementById('dAutoState') : null;
+    var btn = detailId === id ? document.getElementById('dInfoFetch') : null;
+    if(btn) btn.disabled = true;
+    if(st){ st.className = 'auto-line wait'; st.textContent = '📥 캠페인 페이지에서 기본 정보 읽는 중… (토큰 0, 5~20초)'; }
+    try{
+      var res = await mcpNs.callTool(MCP_SERVER, 'campaign_info', { url: link }, manual ? { cache: { refresh: true } } : { cache: { staleTime: 600000 } });
+      var d = res && res.payload;
+      if(typeof d === 'string'){ try{ d = JSON.parse(d); }catch(e){ d = null; } }
+      if(!d || typeof d !== 'object') throw { code: 'tool_error', message: '응답을 읽지 못했어요.' };
+      if(d.error){
+        await db.doc('campaigns/' + id).update({ auto_note: '📥 캠페인 페이지 읽기 실패: ' + String(d.error).slice(0, 200) });
+        toast('캠페인 페이지를 못 읽었어요 — ' + String(d.error).slice(0, 80));
+        if(st){ st.className = 'auto-line fail'; st.textContent = '📥 못 읽음: ' + String(d.error).slice(0, 120); }
+        return;
+      }
+      var p = infoPatchFrom(c, d);
+      var filled = Object.keys(p);
+      p.info_fetched_at = Date.now();
+      p.auto_note = '📥 캠페인 페이지에서 기본 정보 ' + filled.length + '개 (' + localToday() + ', 토큰 0)' + (c.prompt ? '' : ' · 프롬프트는 ⚡ 또는 월~목 루틴');
+      p.note = ((c.note || '') + '\n📥 캠페인 페이지에서 기본 정보 자동 입력 (' + localToday() + (filled.length ? ': ' + filled.join(', ') : ', 새로 채운 칸 없음') + ')').trim();
+      await db.doc('campaigns/' + id).update(p);
+      toast(filled.length ? '기본 정보 ' + filled.length + '개 채웠어요 📥' : '이미 다 채워져 있어요');
+    }catch(e){
+      var f = mcpFix(e);
+      toast('기본 정보를 못 읽었어요 — ' + f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''));
+      if(st){ st.className = 'auto-line fail'; st.textContent = '📥 읽기 실패 (' + f.code + ')' + (e && e.message ? ' · ' + e.message : ''); }
+    }finally{
+      delete infoBusy[id];
+      var b2 = document.getElementById('dInfoFetch'); if(b2) b2.disabled = false;
+      if(detailId === id && lastDetail) fillDetail(lastDetail);
+    }
+  }
 
   /* 성공하면 {template, prompt} 를 돌려준다. 초안 쓰기가 이 값을 그대로 이어받는다.
      skipConfirm 이 true 면 "이미 프롬프트가 있어요" 확인창을 건너뛴다. */
@@ -2236,7 +2297,8 @@ async function writeReview(id){
       input.value = ''; addForm.hidden = true;
       document.getElementById('campAdd').setAttribute('aria-expanded', 'false');
       campStage = 'active'; renderCamps();
-      toast('추가했어요! 다음 월~목 오전 10시에 기본 정보와 프롬프트가 채워져요 🤖');
+      toast('추가했어요! 캠페인 페이지에서 기본 정보를 읽어올게요 📥');
+      setTimeout(function(){ fetchCampaignInfo(id, false); }, 300);
     }catch(err){
       toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요. 오래된 항목을 정리해주세요.' : '추가에 실패했어요. 다시 시도해주세요.');
     }
@@ -2254,6 +2316,8 @@ async function writeReview(id){
     { k:'amount', label:'지원금 (원)', type:'number' },
     { k:'extra_pay', label:'추가 결제 금액 (원)', type:'number' },
     { k:'reserve_phone', label:'예약 전화번호 (담당자용 · 본문 노출 금지)', type:'tel' },
+    { k:'address', label:'업체 주소 (캠페인 페이지에서 자동)', type:'text', full:true },
+    { k:'phone', label:'업체 대표전화 (글에 쓰는 번호)', type:'tel' },
     { k:'companion', label:'동행인', type:'text' },
     { k:'link', label:'캠페인 링크', type:'url', full:true },
     { k:'place_url', label:'네이버 플레이스 주소 (선택 · 넣으면 📍 버튼이 이 주소로 바로 가요)', type:'url', full:true },
@@ -2334,7 +2398,7 @@ async function writeReview(id){
         '<div class="c-actions"><button type="button" class="btn-link" data-toggle="prompt">직접 고치기</button><span class="hint"></span><button type="button" class="btn-copy" id="dPromptCopy">프롬프트 복사</button></div>' +
       '</div>' +
 
-      '<div class="panel"><div class="panel-head"><h2>📌 기본 정보</h2><span class="auto-tag">🤖 캠페인 링크에서 자동 입력</span></div>' +
+      '<div class="panel"><div class="panel-head"><h2>📌 기본 정보</h2><span class="draft-btns"><span class="auto-tag">📥 캠페인 링크에서 자동 입력 · 토큰 0</span><button type="button" class="btn-sm" id="dInfoFetch">📥 다시 읽기</button></span></div>' +
         '<div class="auto-line" id="dAutoState"></div>' +
         '<dl class="kv" id="dInfoView"></dl>' +
         '<div class="grid" id="dInfoEdit" hidden>' + FIELDS.map(fieldInput).join('') + '</div>' +
@@ -2378,6 +2442,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     document.getElementById('dDraftStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
     document.getElementById('dCalBtn').onclick = function(){ syncCalendar(detailId, true); };
     document.getElementById('dPromptNow').onclick = function(){ writePromptNow(detailId); };
+    document.getElementById('dInfoFetch').onclick = function(){ fetchCampaignInfo(detailId, true); };
     document.getElementById('dPromptStop').onclick = function(){ var p = prompting[detailId]; if(p) p.ctl.abort(); };
     document.getElementById('dReviseBtn').onclick = function(){ reviseDraft(detailId); };
     document.getElementById('dReviseStop').onclick = function(){ var d = drafting[detailId]; if(d) d.ctl.abort(); };
@@ -2529,6 +2594,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
       kvRow('추가 결제', c.extra_pay ? esc(won(c.extra_pay)) : '') +
       kvRow('예약 전화번호 (담당자용 · 본문 노출 금지)', c.reserve_phone ? '<a href="tel:' + esc(c.reserve_phone.replace(/[^0-9+]/g,'')) + '" style="color:inherit">' + esc(c.reserve_phone) + '</a>' : '') +
       kvRow('동행인', esc(c.companion)) +
+      kvRow('업체 주소', esc(c.address || ''), true) +
+      kvRow('업체 대표전화', esc(c.phone || '')) +
       kvRow('제공 내역 · 체험 조건', esc(c.offer || '').replace(/\n/g,'<br>'), true) +
       kvRow('업체 요청 키워드 (제목·본문·해시태그에 꼭)', esc(c.keywords || ''), true) +
       kvRow('체험단 미션 · 가이드', esc(c.mission || '').replace(/\n/g,'<br>'), true);
@@ -2633,7 +2700,9 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
           return;
         }
         if(!detailBuilt) buildDetail();
-        fillDetail(Object.assign({ id:id }, snap.data()));
+        var cd = Object.assign({ id:id }, snap.data());
+        fillDetail(cd);
+        if(!cd.name && safeUrl(cd.link) && !cd.info_fetched_at && !infoTried[id]){ infoTried[id] = true; setTimeout(function(){ fetchCampaignInfo(id, false); }, 200); }
       }, function(){
         document.getElementById('dSave').textContent = '실시간 연결에 문제가 있어요. 새로고침 해주세요.';
       });
