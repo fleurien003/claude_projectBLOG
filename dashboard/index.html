@@ -3737,12 +3737,16 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   function blogKeep(n, q){ return n.readable && (n.nv || blogTitleHas(n, q)) && (!blogRecentOnly || blogIsRecent(n)); }
   function blogShown(items, q){ return items.filter(function(n){ return blogKeep(n, q); }).length; }
+  /* 결과가 길어 아래로 내려가기 불편하다는 요청(2026-10-03)으로 목록 위·아래에 접기 버튼을 둔다. 누르면 그 📰/📝 칸이 닫히고 버튼 자리로 되돌아간다. */
+  function kwFoldBtn(type, q){
+    return '<button type="button" class="btn-sm" data-kwfold="' + type + '" data-kwq="' + esc(q) + '" style="display:inline-block;width:auto;margin:0 6px 4px 0;padding:6px 12px">▲ 접기</button>';
+  }
   function blogFilterBar(items, q, o){
     o = o || {};
     var t = items.filter(function(n){ return n.readable && (n.nv || blogTitleHas(n, q)); }).length;
     var sortBtns = o.kwSort ? '<div style="margin:0 0 6px">' + ['sim', 'date'].map(function(sv){
       return '<button type="button" class="btn-sm' + (o.sort === sv ? ' primary' : '') + '" data-blogsort="' + sv + '" data-blogq="' + esc(q) + '" style="display:inline-block;width:auto;margin:0 6px 0 0;padding:6px 12px">' + (sv === 'date' ? '최신순' : '관련도순') + '</button>';
-    }).join('') + '</div>' : '';
+    }).join('') + kwFoldBtn('blog', q) + '</div>' : '';
     var nvLink = '<div style="margin:0 0 6px"><a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=' + encodeURIComponent(q) + '" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:700;color:var(--ink)">🔗 네이버에서 직접 열기</a></div>';
     return sortBtns + nvLink + '<div class="save-status" style="margin:0 0 6px">' + (o.nv ? '네이버 블로그 탭 화면 순서 그대로 · ' + t + '건' : (o.nvFailed ? '⚠️ 네이버 화면을 못 읽어서 검색 API 결과예요 · ' : '') + '네이버 블로그만 · 제목에 "' + esc(q) + '" 있는 글 ' + t + '건 (' + (o.scanned ? '훑은 ' + o.scanned + '건 중' : '받은 ' + items.length + '건 중') + ')') + (o.partial ? ' · 일부 페이지는 못 받았어요' : '') +
       ' · <button type="button" class="btn-link" data-blogrecent="1">' +
@@ -3838,7 +3842,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
     else if(!(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
     else h += '<div class="save-status" style="margin-bottom:6px">"' + esc(q) + '" 최신 뉴스 ' + st.items.length + '건 · ' + (st.outlet_count || 0) + '개 매체 · 쓰고 싶은 기사 옆 🎯</div>' +
-      newsListHtml(st.items, function(i){ return 'data-kwnewsmk="' + esc(q) + '|' + i + '"'; }, 'kw|' + q + '|');
+      newsListHtml(st.items, function(i){ return 'data-kwnewsmk="' + esc(q) + '|' + i + '"'; }, 'kw|' + q + '|') +
+      '<div style="margin:6px 0 0">' + kwFoldBtn('news', q) + '</div>';
     return h + '</div>';
   }
   function blogKwSlot(q, cat){
@@ -3851,7 +3856,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     else if(st.error) h += sortOnly + '<div class="save-status">' + esc(st.error) + '</div>';
     else if(!(st.items || []).length) h += sortOnly + '<div class="save-status">제목에 "' + esc(q) + '" 있는 네이버 블로그 글이 ' + (st.scanned ? '훑은 ' + st.scanned + '건' : '받은 글') + ' 안에 없어요. 다른 순서로 바꿔보세요.</div>';
     else h += '<div class="save-status" style="margin-bottom:2px">"' + esc(q) + '" 블로그 · 쓰고 싶은 글 옆 🎯</div>' + blogFilterBar(st.items, q, bo) +
-      blogListHtml(st.items, function(i){ return 'data-kwblogmk="' + esc(q) + '|' + i + '"'; }, 'kb|' + q + '|', q);
+      blogListHtml(st.items, function(i){ return 'data-kwblogmk="' + esc(q) + '|' + i + '"'; }, 'kb|' + q + '|', q) +
+      '<div style="margin:6px 0 0">' + kwFoldBtn('blog', q) + '</div>';
     return h + '</div>';
   }
   function refreshAllKw(){
@@ -3898,6 +3904,16 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     return loadKwBlog(q, sort);
   }
   document.addEventListener('click', function(e){
+    var kf = e.target.closest('[data-kwfold]');
+    if(kf){
+      var ft = kf.dataset.kwfold, fq = kf.dataset.kwq, fmap = ft === 'news' ? newsKw : blogKw;
+      if(fmap[fq]) fmap[fq].open = false;
+      refreshAllKw();
+      var esq = (window.CSS && CSS.escape) ? CSS.escape(fq) : fq;
+      var anchor = ft === 'news' ? document.querySelector('[data-kwnews="' + esq + '"],[data-relnews="' + esq + '"]') : document.querySelector('[data-kwblog="' + esq + '"]');
+      if(anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     var bsort = e.target.closest('[data-blogsort]');
     if(bsort){ if(!(blogKw[bsort.dataset.blogq] || {}).loading) loadKwBlog(bsort.dataset.blogq, bsort.dataset.blogsort); return; }
     if(e.target.closest('[data-blogrecent]')){
@@ -3980,9 +3996,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     else if(blog){
       h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '관련도순') + (st.nv ? ' · ' : ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + (st.scanned || st.items.length) + '건 훑음 · ') + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>' + blogFilterBar(st.items, st.q, { scanned: st.scanned, partial: st.partial, nv: st.nv, nvFailed: st.nvFailed });
       h += blogListHtml(st.items, function(i){ return 'data-blogmk="' + i + '"'; }, 'cb|' + cat + '|', st.q);
+      h += '<div style="margin:6px 0 0"><button type="button" class="btn-sm" data-newsfold="1">▲ 접기</button></div>';
     }else{
       h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
       h += newsListHtml(st.items, function(i){ return 'data-newsmk="' + i + '"'; }, 'cat|' + cat + '|');
+      h += '<div style="margin:6px 0 0"><button type="button" class="btn-sm" data-newsfold="1">▲ 접기</button></div>';
     }
     box.innerHTML = h;
   }
@@ -4004,6 +4022,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     try{ await db.doc('settings/news_queries').set({ updated_at: Date.now(), hidden: newsHidden }); }catch(e){ toast('저장하지 못했어요. 다시 시도해주세요.'); }
   }
   document.getElementById('newsBox').addEventListener('click', function(e){
+    if(e.target.closest('[data-newsfold]')){ var nfold = document.getElementById('newsFold'); if(nfold){ nfold.open = false; nfold.scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
     var del = e.target.closest('[data-newsq-del]');
     if(del){ (newsHidden[currentFilter] = newsHidden[currentFilter] || []).push(del.dataset.newsqDel); renderNews(); saveNewsHidden(); return; }
     if(e.target.closest('[data-newsq-reset]')){ delete newsHidden[currentFilter]; renderNews(); saveNewsHidden(); return; }
