@@ -3680,7 +3680,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   async function mcpSearch(tool, q, sort, display, extra){
     await initKeywordMcp();
     if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' };
-    var args = Object.assign({ query: q, display: display || 15, sort: sort || 'date' }, extra || {}), res;
+    var args = Object.assign({ query: q, display: display || 10, sort: sort || 'date' }, extra || {}), res;
     try{ res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
     catch(e){
       var f0 = mcpFix(e);
@@ -3697,13 +3697,13 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   async function blogFetchRaw(q, sort){
     var d = await mcpSearch('blog_search', q, sort || 'sim', 30, { source: 'naver_tab' });
     if(!d || d.source !== 'naver_tab') throw { code: 'tool_error', message: '네이버 블로그 탭을 읽지 못했어요. 잠시 뒤 다시 눌러주세요.' };
-    return { total: (d.items || []).length, items: (d.items || []).slice(0, 40).map(function(n){
+    return { total: (d.items || []).length, items: (d.items || []).slice(0, 10).map(function(n){
       return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), blogger: n.blogger || '', postdate: String(n.postdate || '') };
     }) };
   }
   async function newsFetchRaw(q, sort){
     var d = await mcpSearch('news_mentions', q, sort);
-    return { outlet_count: d.outlet_count || 0, items: (d.items || []).slice(0, 15).map(function(n){
+    return { outlet_count: d.outlet_count || 0, items: (d.items || []).slice(0, 10).map(function(n){
       return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), outlet: n.outlet || '', pubDate: n.pubDate || '' };
     }) };
   }
