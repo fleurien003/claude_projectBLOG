@@ -1564,7 +1564,6 @@
   function campCardHtml(c){
     var s = stageOf(c);
     var na = nextAction(c);
-    if(c.auto_status === 'pending' && !na.hint) na.hint = '🤖 자동 입력 대기 중';
     if(c.auto_status === 'failed' && !na.hint) na.hint = '⚠️ 자동 입력 실패 · 열어서 확인';
     var meta = [];
     if(c.product_review) meta.push('<b>제품 리뷰</b>');
