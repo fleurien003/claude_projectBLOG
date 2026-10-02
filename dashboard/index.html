@@ -369,6 +369,7 @@
   <section id="homeSection">
     <div class="stats" id="homeTodo"></div>
     <div class="sec-head"><span>오늘 할 일</span><span class="save-status">눌러서 바로 이동</span></div>
+    <div class="draft-btns" style="margin:0 0 8px"><button type="button" class="btn-sm" id="detectBtn">📮 발행 확인</button><span class="save-status" id="detectState">내 블로그 최근 글과 맞춰서 발행한 글을 자동으로 기록해요</span></div>
     <div class="sec-list" id="homeList"></div>
     <div class="sec-head"><span>🔑 이번 주 추천 키워드</span><span class="save-status">카테고리별</span></div>
     <div class="chk-list" id="homeKw"></div>
@@ -412,6 +413,10 @@
     <details class="fold" id="celebFold" hidden>
       <summary><span>⭐ 연예인 이름 랭킹</span><span class="save-status" id="celebState"></span></summary>
       <div class="inner" id="homeCelebs"></div>
+    </details>
+    <details class="fold" id="newsFold" hidden>
+      <summary><span id="newsTitle">📰 카테고리 뉴스</span><span class="save-status" id="newsState"></span></summary>
+      <div class="inner" id="newsBox"></div>
     </details>
     <div id="feed">
       <div class="empty">불러오는 중...</div>
@@ -651,6 +656,9 @@
     var feed = document.getElementById('feed');
     var cf = document.getElementById('celebFold');
     if(cf) cf.hidden = !(currentFilter === 'celeb_fashion' || currentFilter === 'fashion_coord');
+    var nf = document.getElementById('newsFold');
+    if(nf) nf.hidden = !CAT_META[currentFilter] || !NEWS_DEFAULT_Q[currentFilter];
+    renderNews();
     updateCpaBar();
     if(!itemsLoaded) return;
     if(!allItems.length){
@@ -843,13 +851,22 @@
       (refTab === 'lena' ? lenaExpHtml(item) : refInfoHtml(item, linkHtml));
   }
   var refTab = 'info';
+  function relatedNewsHtml(item){
+    var rn = item.related_news;
+    var src = item.source_desc ? '<div class="field"><span class="label">' + (item.origin === 'blog' ? '원본 블로그 글' : '원본 뉴스') + '</span>' + esc(item.source_title) + (item.source_outlet ? ' <small>(' + esc(item.source_outlet) + ')</small>' : '') + '<br><small>' + esc(item.source_desc) + '</small></div>' : '';
+    var list = Array.isArray(rn)
+      ? (rn.length ? rn.map(function(n){ return '<div style="margin-bottom:4px">' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener">' + esc(n.title) + '</a>' : esc(n.title)) + ' <small>' + esc(n.outlet || '') + '</small></div>'; }).join('') : '<small>관련 뉴스를 찾지 못했어요.</small>')
+      : '<small>초안을 쓸 때 자동으로 찾아요. 지금 찾아두려면 아래 버튼을 누르세요.</small>';
+    return src + '<div class="field"><span class="label">관련 뉴스 (최대 3건 · 초안 근거)</span>' + list +
+      '<div class="draft-btns" style="margin-top:6px"><button type="button" class="btn-sm" id="relNewsBtn">🔎 ' + (Array.isArray(rn) ? '관련 뉴스 다시 찾기' : '관련 뉴스 찾기') + '</button><span class="save-status" id="relNewsState"></span></div></div>';
+  }
   function refInfoHtml(item, linkHtml){
     return '' +
       '<div class="field"><span class="label">강조 포인트</span>' + esc(item.emphasis || '') + '</div>' +
       '<div class="field"><span class="label">반전 포인트</span>' + esc(item.twist || '') + '</div>' +
       '<div class="title-bait">💬 ' + esc(item.title_bait || '') + '</div>' +
       (item.kurly_action_note ? '<div class="field" style="color:var(--chip-kurly-ink);font-weight:700;">🛒 ' + esc(item.kurly_action_note) + '</div>' : '') +
-      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>';
+      '<div class="links" style="margin-top:10px;">' + linkHtml + '</div>' + relatedNewsHtml(item);
   }
   /* 르나 경험 탭 — 내 정보 탭에 적어 둔 제품·여행 중 이 카드와 관련된 것 + 이 카드 전용 메모. 초안 프롬프트가 쓰는 것과 같은 기준이다. */
   function lenaExpHtml(item){
@@ -880,6 +897,14 @@
   document.getElementById('editorRef').addEventListener('click', async function(e){
     var tb = e.target.closest('[data-reftab]');
     if(tb){ refTab = tb.dataset.reftab; if(feedItem) renderHeadAndRef(feedItem); return; }
+    if(e.target.id === 'relNewsBtn'){
+      var rs = document.getElementById('relNewsState');
+      if(!db || !feedItem || !feedItem.id){ if(rs) rs.textContent = '지금은 쓸 수 없어요'; return; }
+      e.target.disabled = true; if(rs) rs.textContent = '찾는 중…';
+      try{ var got = await refreshRelatedNews(feedItem.id, db.doc('items/' + feedItem.id), feedItem, true); toast('관련 뉴스 ' + got.length + '건을 찾았어요 🔎'); }
+      catch(err){ if(rs) rs.textContent = newsErr(err); e.target.disabled = false; }
+      return;
+    }
     if(e.target.id === 'lenaNoteSave'){
       var ta = document.getElementById('lenaNote'), st = document.getElementById('lenaNoteState');
       if(!db || !feedItem || !feedItem.id){ if(st) st.textContent = '지금은 저장할 수 없어요'; return; }
@@ -1124,6 +1149,9 @@
       '제목 후보: ' + (it.title_bait || ''),
       it.trend_note ? '왜 지금인지: ' + it.trend_note : '',
       it.source_url ? '출처: ' + it.source_url : '',
+      it.source_desc ? (it.origin === 'blog' ? '[원본 블로그 글 — 다른 블로거 글의 제목·앞부분이야. 소재만 참고하고 문장·표현은 따라 쓰지 마. 그 블로거의 개인 후기·경험은 사실로 쓰지 마]' : '[원본 뉴스 — 이 카드의 출발점]') + '\n제목: ' + it.source_title + '\n요약: ' + it.source_desc : '',
+      (it.related_news || []).length ? '[관련 뉴스 — 사실 확인용, 최대 3건]\n' + it.related_news.map(function(n, i){ return (i + 1) + '. ' + n.title + ' / ' + n.description; }).join('\n') : '',
+      (it.source_desc || (it.related_news || []).length) ? '- 위 뉴스·글의 제목·요약에 있는 사실만 근거로 써. 기사에 없는 숫자·가격·날짜·발언은 지어내지 마. 매체 이름, 보도 날짜, "기사에 따르면" 같은 표현은 본문에 쓰지 마. 뉴스끼리 내용이 다르면 겹치는 사실만 써.' : '',
       it.source_url2 ? '출처2: ' + it.source_url2 : '',
       it.hashtags ? '[해시태그 후보 — 검색량 확인된 키워드]\n' + it.hashtags : '',
       links ? '이미지 소스(참고용, 글에 넣지 말 것): ' + links : '',
@@ -1151,6 +1179,33 @@
       '', '[현재 글]', String(it.draft_content || '')].join('\n');
   }
 
+  /* 관련 뉴스 보강: 카드 주제(없으면 메인 키워드)로 네이버 뉴스를 정확도순 조회해 원본 기사와 겹치지 않는 최대 3건을 카드(related_news)에 저장한다.
+     조회는 토큰 0, 초안 프롬프트에 3건 분량(제목+요약)이 더해질 뿐이다. 이미 저장돼 있으면 다시 찾지 않는다(🔎 버튼으로만 다시). */
+  async function findRelatedNews(it){
+    var seen = {}, out = [];
+    if(it.source_url) seen[it.source_url] = 1;
+    if(it.source_title) seen['t' + String(it.source_title).replace(/\s+/g, '').slice(0, 14)] = 1;
+    var qs = [];
+    [it.topic, it.main_keyword].forEach(function(q){ q = String(q || '').trim(); if(q && !/^\(링크 확인 전\)/.test(q) && qs.indexOf(q) < 0) qs.push(q); });
+    for(var k = 0; k < qs.length && out.length < 3; k++){
+      var r = await newsFetchRaw(qs[k], 'sim');
+      r.items.forEach(function(n){
+        var tk = 't' + n.title.replace(/\s+/g, '').slice(0, 14);
+        if(out.length >= 3 || (n.link && seen[n.link]) || seen[tk]) return;
+        if(n.link) seen[n.link] = 1; seen[tk] = 1;
+        out.push({ title: n.title, description: String(n.description || '').slice(0, 200), link: n.link, outlet: n.outlet, pubDate: n.pubDate });
+      });
+    }
+    return out;
+  }
+  async function refreshRelatedNews(id, docRef, it, force){
+    if(!force && Array.isArray(it.related_news)) return it.related_news;
+    var list = await findRelatedNews(it);
+    await docRef.update({ related_news: list, related_news_at: Date.now() });
+    it.related_news = list;
+    return list;
+  }
+
   async function writeFeedDraft(id, docRef, revise){
     if(feedWriting) return;
     var it = feedItem;
@@ -1168,6 +1223,11 @@
     if(ta) ta.readOnly = true;
     if(st) st.textContent = revise ? '✏️ 고치는 중…' : '✍️ 쓰는 중… (30초~1분)';
     try{
+      if(!revise){
+        if(st) st.textContent = '🔎 관련 뉴스 찾는 중…';
+        try{ await refreshRelatedNews(id, docRef, it, false); }catch(e){ /* 뉴스를 못 찾아도 초안은 쓴다 */ }
+        if(st) st.textContent = '✍️ 쓰는 중… (30초~1분)';
+      }
       var res = await sampleFn(buildFeedPrompt(it, revise), {
         cache: false, signal: ctl.signal,
         onText: function(u){ if(ta) ta.value = u.text; if(st) st.textContent = (revise ? '✏️ 고치는 중… ' : '✍️ 쓰는 중… ') + (u.text || '').length.toLocaleString() + '자'; }
@@ -2301,7 +2361,7 @@ async function writeReview(id){
         '<textarea class="rev-ta" id="f_revise" placeholder="예) ③ 메뉴 설명이 길어요, 절반으로 줄여줘&#10;도입부가 딱딱해요. 좀 더 수다스럽게&#10;마무리에 주차 이야기 한 줄 넣어줘&#10;해시태그에 지역 키워드 더 넣어줘"></textarea>' +
         '<div class="draft-btns" style="margin-top:8px"><button type="button" class="btn-sm primary" id="dReviseBtn">✏️ 수정 반영</button><button type="button" class="btn-sm" id="dReviseStop" hidden>멈추기</button><span class="save-status" id="dReviseState">고칠 곳을 적고 누르면 그 부분만 고쳐서 다시 써요</span></div>' +
         '<div class="sec-head"><span>📮 발행 기록</span><span class="save-status" id="dPostState"></span></div>' +
-        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (자동 감지는 아직 없어요)" autocomplete="off">' +
+        '<input class="search" id="f_posted_url" data-k="posted_url" type="url" placeholder="블로그에 올린 뒤 글 주소를 여기 붙여넣어 주세요. (비워두면 홈의 📮 발행 확인이 제목으로 찾아 채워요)" autocomplete="off">' +
         '<div class="sec-head"><span>업로드 전 점검</span><span class="save-status">플랫폼 미션·금지어 자동 확인</span></div><div class="chk-list" id="dCheck"></div>' +
         '<div class="sec-head"><span>소주제별 복사</span><span class="save-status">누르면 그 부분만 복사돼요</span></div><div class="sec-list" id="dSections"></div>' +
       '</div>' +
@@ -2652,6 +2712,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(!todoEl) return;
     renderChannels(); renderCelebRank();
     if(!campLoaded || !itemsLoaded){ todoEl.innerHTML = '<div class="empty">불러오는 중...</div>'; return; }
+    if(!detectStarted){ detectStarted = true; setTimeout(function(){ detectPublished(false); }, 1500); }
 
     // 오늘 써야 할 글 = 컨펌했는데 초안 없는 홈피드 + 방문 완료인데 초안 없는 체험단
     var feedToWrite = allItems.filter(function(i){ return i.status === 'confirmed' && !i.draft_content; });
@@ -2711,7 +2772,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
             return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(p.kw) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
               '<span class="mk">🔑</span><span class="tx"><b>' + esc(p.kw) + '</b><small>' + bits.map(esc).join(' · ') + '</small></span></button>' +
               '<button type="button" class="btn-sm ' + (has ? 'good' : 'primary') + '" data-pickmk="' + esc(p.kw) + '"' + (has ? ' disabled' : '') + '>' + (has ? '카드 있음' : '주제 선정') + '</button>' +
-              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '</div>' + inlineKwSlot(p.kw);
+              (has ? '' : '<button type="button" class="btn-sm' + (p.swap ? ' good' : '') + '" data-pickswap="' + esc(p.kw) + '">' + (p.swap ? '교체 예정 ✕' : '다른 키워드') + '</button>') + '<button type="button" class="btn-sm' + (newsKw[p.kw] && newsKw[p.kw].open ? ' primary' : '') + '" data-kwnews="' + esc(p.kw) + '">📰 뉴스</button><button type="button" class="btn-sm' + (blogKw[p.kw] && blogKw[p.kw].open ? ' primary' : '') + '" data-kwblog="' + esc(p.kw) + '">📝 블로그</button></div>' + inlineKwSlot(p.kw, LINK_CAT_KEY[p.category]) + newsKwSlot(p.kw, LINK_CAT_KEY[p.category]) + blogKwSlot(p.kw, LINK_CAT_KEY[p.category]);
           }).join('');
       }).join('');
     fillInlineKw(kwEl);
@@ -2720,10 +2781,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   /* 키워드를 누르면 그 줄 바로 아래에 검색량 조회를 펼친다. 다시 누르면 접힌다.
      조회는 뷰어의 커넥터로 나가서 Claude 토큰이 들지 않는다. */
   var kwOpen = {};   // 키워드 -> {loading} | {data} | {error}
-  function inlineKwSlot(kw){
+  function inlineKwSlot(kw, cat){
     var st = kwOpen[kw];
     if(!st) return '';
-    return '<div class="kw-res kw-inline" data-kwfor="' + esc(kw) + '" style="width:100%">' +
+    return '<div class="kw-res kw-inline" data-kwfor="' + esc(kw) + '" data-catkey="' + esc(cat || '') + '" style="width:100%">' +
       (st.loading ? '<div class="save-status">조회 중…</div>' : (st.error ? '<div class="save-status">' + esc(st.error) + '</div>' : '')) + '</div>';
   }
   function fillInlineKw(root){
@@ -2921,10 +2982,14 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     if(d.related && d.related.length){
       rel += '<div class="kw-rel"><h3>연관 키워드 — 눌러서 바로 조회</h3>';
       d.related.forEach(function(r){
-        rel += '<button type="button" data-kw="' + esc(r.keyword) + '">' +
+        var rn = newsKw[r.keyword] && newsKw[r.keyword].open;
+        rel += '<div class="pick-row"><button type="button" data-kw="' + esc(r.keyword) + '" style="flex:1;min-width:0">' +
                '<span class="rk">' + esc(r.keyword) + '</span>' +
                '<span class="rv">' + (r.under_10 ? '10회 미만' : comma(r.total)) + '</span>' +
-               '<span class="rc">' + esc(r.comp || '') + '</span></button>';
+               '<span class="rc">' + esc(r.comp || '') + '</span></button>' +
+               '<button type="button" class="btn-sm' + (rn ? ' primary' : '') + '" data-relnews="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📰 뉴스</button>' +
+               '<button type="button" class="btn-sm' + (blogKw[r.keyword] && blogKw[r.keyword].open ? ' primary' : '') + '" data-kwblog="' + esc(r.keyword) + '" style="width:auto;flex:none;margin-bottom:5px;align-self:flex-start;display:block;padding:8px 12px">📝 블로그</button></div>' +
+               newsKwSlot(r.keyword, '') + blogKwSlot(r.keyword, '');
       });
       rel += '</div>';
     }
@@ -2944,6 +3009,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         (t.notice ? '<br>' + esc(t.notice) : '') +
         (t.error ? '<br>추이를 못 가져왔어요 — 검색량 수치만 보시면 돼요' : '') +
       '</div>' + rel;
+    res._kwData = d;
     res.hidden = false;
   }
 
@@ -3498,6 +3564,341 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      keyword_volume 으로 조회해 검색량 순으로 세운 것이다. 조회는 뷰어의 커넥터로 나가서 Claude 토큰이 들지 않는다.
      동명이인은 따로 거르지 않는다 (은아님 결정). */
   var celebList = [], celebRank = null, celebBusy = false, celebProgress = '';
+  /* 📰 뉴스 보기 → 기사마다 🎯 주제선정 — 이름 옆 버튼을 누르면(DB: settings/celeb_topic, 눌린 상태가 남는다) 그 인물의 네이버 뉴스(news_mentions)를
+     목록으로 보여준다. 쓰고 싶은 기사 옆 🎯 주제선정을 누르면 Claude(sample)가 그 기사 하나로 글감을 정리해 연예인·명품 카드를 만든다.
+     뉴스 조회는 토큰 0, 기사 하나 정리할 때만 Claude 토큰이 든다. 사실은 기사 제목·요약에 있는 것만 쓴다. */
+  var celebTopics = {}, celebTopicBusy = {}, newsMaking = {};
+  function hasNewsCard(link){
+    return !!link && allItems.some(function(i){ return (i.origin === 'celeb' || i.origin === 'news' || i.origin === 'blog') && i.source_url === link && i.status !== 'posted'; });
+  }
+  function celebTopicPanel(name){
+    var t = celebTopics[name];
+    if(!t) return '';
+    var h = '<div class="kw-res kw-inline" style="width:100%">';
+    if(celebTopicBusy[name] || t.loading) return h + '<div class="save-status">' + esc(name) + ' 뉴스 찾는 중…</div></div>';
+    if(t.error) return h + '<div class="save-status">' + esc(t.error) + '</div></div>';
+    var items = t.items || [];
+    if(!items.length) return h + '<div class="save-status">최근 뉴스가 없어요.</div></div>';
+    h += '<div class="save-status" style="margin-bottom:6px">최근 뉴스 ' + items.length + '건 · ' + (t.outlet_count || 0) + '개 매체' + (t.fetched_at ? ' · ' + new Date(t.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준' : '') + ' · 쓰고 싶은 기사 옆 🎯를 누르세요</div>';
+    h += items.map(function(n, i){
+      var key = name + '|' + i, made = hasNewsCard(n.link), busy = !!newsMaking[key];
+      var when = n.pubDate ? new Date(n.pubDate) : null;
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + esc(n.title) + '</b>' +
+        '<small>' + esc(n.outlet || '') + (when && !isNaN(when) ? ' · ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + pad(when.getMinutes()) : '') +
+        (safeUrl(n.link) ? ' · <a href="' + esc(n.link) + '" target="_blank" rel="noopener">기사 열기</a>' : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" data-celebmk="' + esc(name) + '|' + i + '"' + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+    return h + '</div>';
+  }
+  function newsTopicPrompt(name, n, catLabel, kind){
+    var blog = kind === 'blog', w = blog ? '글' : '기사';
+    return [
+      '너는 르나의 네이버 홈피드(' + (catLabel || '연예인·명품') + ' 카테고리) 글감 카드를 정리하는 조수야. 아래 ' + (blog ? '다른 블로거의 글(제목·앞부분 요약) 하나에서 소재만 뽑아 글감으로 정리해. 그 글의 문장·표현은 따라 쓰지 마.' : '뉴스 기사 하나를 글감으로 정리해.'),
+      '', '[' + (catLabel ? '검색어' : '인물') + '] ' + name, '[' + w + ' 제목] ' + n.title, '[' + w + ' 요약] ' + n.description, '[' + (blog ? '블로거' : '매체') + '] ' + (n.outlet || ''),
+      '', '[규칙]',
+      '- 제목·요약에 있는 인물·브랜드·제품명·가격·날짜만 써. 없는 숫자나 사실을 지어내지 마. 요약에 없는 내용은 쓰지 마.' + (blog ? ' 블로거 개인의 후기·감상·평가는 사실로 쓰지 마.' : ''),
+      '- topic: 한 줄. 누구 + 무엇(브랜드·제품·장소)이 드러나게.',
+      '- emphasis: 글에서 강조할 포인트 1~2문장. twist: 궁금증을 만드는 반전·의문 1문장(' + w + ' 사실 범위 안에서). title_bait: 제목 후보 하나, 괄호 쓰지 마.',
+      '- 아래 JSON 한 개만 출력해. 설명은 쓰지 마.',
+      '{"topic":"","emphasis":"","twist":"","title_bait":""}'
+    ].join('\n');
+  }
+  async function saveCelebTopics(){
+    if(!db) return;
+    try{ await db.doc('settings/celeb_topic').set({ updated_at: Date.now(), names: celebTopics }); }catch(e){}
+  }
+  /* news_mentions 한 번 조회 (retryable 실패는 1회 재시도). 연예인·카테고리·키워드 뉴스가 같이 쓴다. */
+  async function mcpSearch(tool, q, sort){
+    await initKeywordMcp();
+    if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 조회할 수 있어요.' };
+    var args = { query: q, display: 15, sort: sort || 'date' }, res;
+    try{ res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
+    catch(e){
+      var f0 = mcpFix(e);
+      if(f0.retryable){ await sleep(Math.min(f0.after || 2500, 15000) + Math.random() * 800); res = await mcpNs.callTool(MCP_SERVER, tool, args, { cache: { staleTime: 300000 } }); }
+      else throw e;
+    }
+    var d = res && res.payload;
+    if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+    return d;
+  }
+  async function blogFetchRaw(q, sort){
+    var d = await mcpSearch('blog_search', q, sort || 'sim');
+    return { total: d.total || 0, items: (d.items || []).slice(0, 15).map(function(n){
+      return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), blogger: n.blogger || '', postdate: String(n.postdate || ''), readable: !!n.readable };
+    }) };
+  }
+  async function newsFetchRaw(q, sort){
+    var d = await mcpSearch('news_mentions', q, sort);
+    return { outlet_count: d.outlet_count || 0, items: (d.items || []).slice(0, 15).map(function(n){
+      return { title: String(n.title || ''), description: String(n.description || '').slice(0, 300), link: safeUrl(n.link), outlet: n.outlet || '', pubDate: n.pubDate || '' };
+    }) };
+  }
+  function blogListHtml(items, mkAttr, busyPrefix){
+    return items.map(function(n, i){
+      var d = /^\d{8}$/.test(n.postdate) ? n.postdate.slice(0, 4) + '.' + n.postdate.slice(4, 6) + '.' + n.postdate.slice(6) : n.postdate;
+      var made = hasNewsCard(n.link), busy = !!newsMaking[busyPrefix + i];
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + (safeUrl(n.link) ? '<a href="' + esc(n.link) + '" target="_blank" rel="noopener" style="color:inherit">' + esc(n.title) + '</a>' : esc(n.title)) + '</b>' +
+        '<small>' + esc(n.blogger || '') + (d ? ' · ' + esc(d) : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" ' + mkAttr(i) + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+  }
+  function blogAsItem(n){ return { title: n.title, description: n.description, link: n.link, outlet: n.blogger, pubDate: n.postdate }; }
+  function newsErr(e){ var f = mcpFix(e); return f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''); }
+  /* 기사 목록 HTML. mkAttr(i) 는 🎯 버튼에 붙일 data 속성, busyPrefix 는 정리 중 표시용 키. */
+  function newsListHtml(items, mkAttr, busyPrefix){
+    return items.map(function(n, i){
+      var made = hasNewsCard(n.link), busy = !!newsMaking[busyPrefix + i];
+      var when = n.pubDate ? new Date(n.pubDate) : null;
+      return '<div class="chk" style="margin-bottom:6px"><span class="tx"><b>' + esc(n.title) + '</b>' +
+        '<small>' + esc(n.outlet || '') + (when && !isNaN(when) ? ' · ' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + when.getHours() + ':' + pad(when.getMinutes()) : '') +
+        (safeUrl(n.link) ? ' · <a href="' + esc(n.link) + '" target="_blank" rel="noopener">기사 열기</a>' : '') + '</small>' +
+        (n.description ? '<small>' + esc(n.description) + '</small>' : '') + '</span>' +
+        '<button type="button" class="btn-sm' + (made ? '' : ' primary') + '" ' + mkAttr(i) + ((made || busy) ? ' disabled' : '') + ' style="margin-left:auto;flex:none">' + (made ? '카드 있음' : (busy ? '정리 중…' : '🎯 주제선정')) + '</button></div>';
+    }).join('');
+  }
+  async function toggleCelebTopic(name){
+    if(celebTopics[name]){                         // 눌린 상태 → 끄기
+      delete celebTopics[name]; renderCelebRank(); saveCelebTopics(); return;
+    }
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    celebTopics[name] = { loading: true }; celebTopicBusy[name] = true; renderCelebRank();
+    var out = { fetched_at: Date.now(), items: [] };
+    try{
+      var r = await newsFetchRaw(name, 'date');
+      out.outlet_count = r.outlet_count; out.items = r.items;
+    }catch(e){ out.error = newsErr(e); }
+    delete celebTopicBusy[name];
+    if(!celebTopics[name]) { renderCelebRank(); return; }   // 조회 중에 껐으면 그대로 둔다
+    celebTopics[name] = out;
+    renderCelebRank(); saveCelebTopics();
+  }
+  /* 기사 하나 → Claude 가 글감으로 정리 → items 카드. 연예인 랭킹(origin 'celeb')과 카테고리 뉴스(origin 'news')가 같이 쓴다. */
+  async function makeNewsCard(o){
+    var n = o.item, key = o.busyKey;
+    if(!n || !db || newsMaking[key]) return;
+    if(hasNewsCard(n.link)){ toast('이미 카드가 있어요'); return; }
+    if(!sampleFn || sampleBlocked){ toast('이 화면에서는 쓸 수 없어요. claude.ai에서 대시보드를 열어주세요.'); return; }
+    newsMaking[key] = true; o.rerender();
+    try{
+      var meta = CAT_META[o.catKey];
+      var catName = String(meta.label).replace(/^\S+\s/, '');
+      var res = await sampleFn(newsTopicPrompt(o.query, n, o.origin === 'celeb' ? '' : catName, o.kind), { cache: false });
+      var j = parseJsonLoose(res && res.text);
+      if(!j || !j.topic) throw new Error('parse');
+      var r = (celebRank && celebRank.rows || []).filter(function(y){ return y.name === o.query; })[0] || {};
+      await db.doc('items/n' + Date.now().toString(36)).set({
+        date: localToday(), category_key: o.catKey, category: catName,
+        topic: String(j.topic), emphasis: String(j.emphasis || ''), twist: String(j.twist || ''), title_bait: String(j.title_bait || ''),
+        main_keyword: o.origin === 'celeb' ? o.query : (o.mainKw || ''), keyword_volume: o.origin === 'celeb' ? (Number(r.volume) || 0) : (Number(o.volume) || 0),
+        trend_note: o.query + (o.origin === 'celeb' && r.volume ? ' 월 ' + Number(r.volume).toLocaleString() + '회' : '') + (o.kind === 'blog' ? ' · 블로그: ' : ' · 뉴스: ') + n.title,
+        source_url: n.link || '', source_title: n.title || '', source_desc: n.description || '', source_outlet: n.outlet || '', source_pub: n.pubDate || '',
+        status: 'pending', origin: o.origin, needs_read: false, created_at: Date.now()
+      });
+      toast('주제 카드를 만들었어요. ' + catName + ' 탭에서 확인하세요');
+    }catch(err){
+      if(err && (err.code === 'not_granted' || err.code === 'sampling_disabled' || err.code === 'not_declared' || err.code === 'capability_disabled' || err.code === 'capability_removed')) sampleBlocked = true;
+      toast(err && err.code === 'quota_exceeded' ? '저장 공간이 가득 찼어요.' : '카드를 만들지 못했어요. 다시 눌러주세요.');
+    }
+    delete newsMaking[key];
+    o.rerender();
+  }
+  function makeCelebCard(name, idx){
+    var n = ((celebTopics[name] || {}).items || [])[idx];
+    return makeNewsCard({ item: n, busyKey: name + '|' + idx, catKey: 'celeb_fashion', query: name, origin: 'celeb', rerender: renderCelebRank });
+  }
+
+
+  /* ── 📰 키워드 뉴스: 이번 주 추천 키워드·연관 키워드 옆 📰 → 그 키워드로 뉴스 조회, 기사 옆 🎯 주제선정 → 카드.
+     카테고리는 눌린 자리에서 정한다(추천 키워드 줄은 그 키워드의 카테고리, 카테고리 탭 안이면 그 탭, 카드 안이면 그 카드의 카테고리). ── */
+  var blogKw = {};   // 키워드 -> 블로그 검색 상태 (newsKw 와 같은 모양)
+  var newsKw = {};   // 키워드 -> {open, loading, error, items, outlet_count, fetched_at}
+  function newsKwSlot(q, cat){
+    var st = newsKw[q];
+    if(!st || !st.open) return '';
+    var h = '<div class="kw-news" data-catkey="' + esc(cat || '') + '" style="width:100%;margin:2px 0 8px">';
+    if(st.loading) h += '<div class="save-status">' + esc(q) + ' 뉴스 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(!(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else h += '<div class="save-status" style="margin-bottom:6px">"' + esc(q) + '" 최신 뉴스 ' + st.items.length + '건 · ' + (st.outlet_count || 0) + '개 매체 · 쓰고 싶은 기사 옆 🎯</div>' +
+      newsListHtml(st.items, function(i){ return 'data-kwnewsmk="' + esc(q) + '|' + i + '"'; }, 'kw|' + q + '|');
+    return h + '</div>';
+  }
+  function blogKwSlot(q, cat){
+    var st = blogKw[q];
+    if(!st || !st.open) return '';
+    var h = '<div class="kw-news" data-catkey="' + esc(cat || '') + '" style="width:100%;margin:2px 0 8px">';
+    if(st.loading) h += '<div class="save-status">' + esc(q) + ' 블로그 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(!(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else h += '<div class="save-status" style="margin-bottom:6px">"' + esc(q) + '" 블로그 ' + st.items.length + '건 (정확도순) · 쓰고 싶은 글 옆 🎯</div>' +
+      blogListHtml(st.items, function(i){ return 'data-kwblogmk="' + esc(q) + '|' + i + '"'; }, 'kb|' + q + '|');
+    return h + '</div>';
+  }
+  function refreshAllKw(){
+    renderKwPicks(); renderCelebRank();
+    document.querySelectorAll('.kw-res').forEach(function(el){
+      if(el._kwData && !el.classList.contains('kw-inline')) kwRender(el._kwData, el);
+    });
+  }
+  function newsCatOf(el){
+    var w = el.closest('.kw-news'); if(w && w.dataset.catkey) return w.dataset.catkey;
+    var kr = el.closest('.kw-res'); if(kr && kr.dataset.catkey) return kr.dataset.catkey;
+    var card = el.closest('.card[data-id]');
+    if(card){ var it = allItems.filter(function(x){ return x.id === card.dataset.id; })[0]; if(it && CAT_META[it.category_key]) return it.category_key; }
+    return NEWS_DEFAULT_Q[currentFilter] ? currentFilter : '';
+  }
+  async function toggleKwSearch(map, fetcher, q, sort){
+    var st = map[q] = map[q] || {};
+    if(st.open){ st.open = false; refreshAllKw(); return; }
+    st.open = true;
+    if(st.items && st.fetched_at && Date.now() - st.fetched_at < 300000){ refreshAllKw(); return; }
+    st.loading = true; st.error = ''; refreshAllKw();
+    try{
+      var r = await fetcher(q, sort);
+      st.outlet_count = r.outlet_count; st.items = r.items; st.fetched_at = Date.now();
+    }catch(e){ st.error = newsErr(e); }
+    st.loading = false; refreshAllKw();
+  }
+  function toggleKwNews(q){ return toggleKwSearch(newsKw, newsFetchRaw, q, 'date'); }
+  function toggleKwBlog(q){ return toggleKwSearch(blogKw, blogFetchRaw, q, 'sim'); }
+  document.addEventListener('click', function(e){
+    var kn = e.target.closest('[data-kwnews],[data-relnews]');
+    if(kn){ toggleKwNews(kn.dataset.kwnews || kn.dataset.relnews); return; }
+    var kb = e.target.closest('[data-kwblog]');
+    if(kb){ toggleKwBlog(kb.dataset.kwblog); return; }
+    var bk = e.target.closest('[data-kwblogmk]');
+    if(bk && !bk.disabled){
+      var bp = bk.dataset.kwblogmk.split('|'), bi = Number(bp.pop()), bq = bp.join('|');
+      var bcat = newsCatOf(bk);
+      if(!bcat){ toast('추천 키워드 줄이나 카테고리 탭 안에서 눌러주세요.'); return; }
+      var bst = blogKw[bq], bkd = kwOpen[bq] && kwOpen[bq].data;
+      var bpk = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === bq; })[0];
+      makeNewsCard({ item: bst && bst.items && blogAsItem(bst.items[bi]), busyKey: 'kb|' + bq + '|' + bi, catKey: bcat, query: bq, mainKw: bq,
+        volume: bkd ? bkd.total : (bpk ? bpk.volume : 0), origin: 'blog', kind: 'blog', rerender: refreshAllKw });
+      return;
+    }
+    var mk = e.target.closest('[data-kwnewsmk]');
+    if(mk && !mk.disabled){
+      var pr = mk.dataset.kwnewsmk.split('|'), i = Number(pr.pop()), q = pr.join('|');
+      var cat = newsCatOf(mk);
+      if(!cat){ toast('추천 키워드 줄이나 카테고리 탭 안에서 눌러주세요.'); return; }
+      var st = newsKw[q], kd = kwOpen[q] && kwOpen[q].data;
+      var pk = ((kwPicks && kwPicks.picks) || []).filter(function(x){ return x.kw === q; })[0];
+      makeNewsCard({ item: st && st.items && st.items[i], busyKey: 'kw|' + q + '|' + i, catKey: cat, query: q, mainKw: q,
+        volume: kd ? kd.total : (pk ? pk.volume : 0), origin: 'news', rerender: refreshAllKw });
+    }
+  });
+
+  /* ── 📰 카테고리 뉴스: 탭마다 그 카테고리 검색어로 네이버 뉴스를 조회하고, 기사마다 🎯 주제선정.
+     검색어 기본값은 임의로 정한 값(근거 없는 판단값)이다. 칩으로 바로 고르거나 직접 입력한다. 이번 주 추천 키워드(keyword_picks)도 칩으로 뜬다.
+     조회는 토큰 0, 🎯 로 기사 하나를 정리할 때만 Claude 토큰이 든다. 결과는 화면에만 두고 DB에는 저장하지 않는다. */
+  var NEWS_DEFAULT_Q = {
+    celeb_fashion: ['연예인 명품 가방', '연예인 공항패션'], fashion_coord: ['연예인 코디', '가을 패션 트렌드'],
+    travel_spot: ['단풍 명소', '지역 축제'], costco_daiso: ['코스트코 신상', '다이소 신상'],
+    appliance: ['신제품 가전', '로봇청소기'], phone: ['스마트폰 출시', '아이폰 신제품'],
+    travel_issue: ['국내여행 추천', '해외여행 항공권'], ott: ['넷플릭스 신작', '디즈니플러스 신작'], kurly_pick: ['컬리 신상', '컬리 추천']
+  };
+  var newsMode = 'news';   // 카테고리 뉴스 칸의 탭: 'news' | 'blog'
+  function nkey(cat){ return newsMode === 'blog' ? cat + '|blog' : cat; }
+  var newsHidden = {};   // catKey -> 뺀 기본 검색어 (DB: settings/news_queries)
+  var newsByCat = {};   // catKey -> {q, sort, loading, error, items, outlet_count, fetched_at}
+  function newsQueries(cat){
+    var seen = {}, out = [];
+    ((kwPicks && kwPicks.picks) || []).forEach(function(p){ if(LINK_CAT_KEY[p.category] === cat && p.kw && !seen[p.kw]){ seen[p.kw] = 1; out.push({ q: p.kw, pick: true }); } });
+    (NEWS_DEFAULT_Q[cat] || []).forEach(function(q){ if(!seen[q] && (newsHidden[cat] || []).indexOf(q) < 0){ seen[q] = 1; out.push({ q: q }); } });
+    return out;
+  }
+  function renderNews(){
+    var box = document.getElementById('newsBox'), cat = currentFilter;
+    if(!box || !NEWS_DEFAULT_Q[cat]) return;
+    var ae = document.activeElement;
+    if(ae && ae.id === 'newsInput') return;                         // 입력 중에는 다시 그리지 않는다
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] || { q: '', sort: blog ? 'sim' : 'date' };
+    var meta = CAT_META[cat];
+    var ttl = document.getElementById('newsTitle'); if(ttl) ttl.textContent = '📰 ' + String(meta.label).replace(/^\S+\s/, '') + ' 뉴스·블로그';
+    var ns = document.getElementById('newsState'); if(ns) ns.textContent = st.loading ? '조회 중…' : (st.fetched_at ? '"' + st.q + '" ' + (st.items || []).length + '건' : '');
+    var gone = (newsHidden[cat] || []).length;
+    var h = '<div class="draft-btns" style="margin-bottom:8px"><button type="button" class="btn-sm' + (blog ? '' : ' primary') + '" data-newstab="news">📰 뉴스</button><button type="button" class="btn-sm' + (blog ? ' primary' : '') + '" data-newstab="blog">📝 블로그</button></div>' +
+      '<div class="draft-btns" style="margin-bottom:8px">' + newsQueries(cat).map(function(x){
+        var on = x.q === st.q ? ' primary' : '';
+        if(x.pick) return '<button type="button" class="btn-sm' + on + '" data-newsq="' + esc(x.q) + '">🔑 ' + esc(x.q) + '</button>';
+        return '<span class="btn-sm' + on + '" style="display:inline-flex;align-items:center;padding:0"><button type="button" data-newsq="' + esc(x.q) + '" style="border:none;background:none;font:inherit;color:inherit;cursor:pointer;padding:8px 4px 8px 12px">' + esc(x.q) + '</button>' +
+          '<button type="button" data-newsq-del="' + esc(x.q) + '" aria-label="' + esc(x.q) + ' 빼기" style="border:none;background:none;font:inherit;color:inherit;cursor:pointer;padding:8px 10px 8px 2px;opacity:.7">×</button></span>'; }).join('') +
+      (gone ? '<button type="button" class="btn-link" data-newsq-reset="1">뺀 검색어 되돌리기 (' + gone + ')</button>' : '') + '</div>' +
+      '<form class="kw-form" id="newsForm" style="margin-bottom:8px"><input id="newsInput" type="search" placeholder="검색어 직접 입력" value="' + esc(st.q) + '" autocomplete="off" enterkeyhint="search">' +
+        '<select id="newsSort" aria-label="정렬" style="font:inherit;font-size:13px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:0 8px"><option value="date"' + (st.sort === 'date' ? ' selected' : '') + '>최신순</option><option value="sim"' + (st.sort === 'sim' ? ' selected' : '') + '>정확도순</option></select>' +
+        '<button type="submit"' + (st.loading ? ' disabled' : '') + '>조회</button></form>';
+    if(st.loading) h += '<div class="save-status">' + (blog ? '블로그' : '뉴스') + ' 찾는 중…</div>';
+    else if(st.error) h += '<div class="save-status">' + esc(st.error) + '</div>';
+    else if(st.fetched_at && !(st.items || []).length) h += '<div class="save-status">검색 결과가 없어요.</div>';
+    else if(!st.fetched_at) h += '<div class="save-status">검색어 칩을 누르거나 직접 입력해서 조회하세요.' + (blog ? ' 다른 블로거들이 이 주제를 어떻게 쓰는지 제목·요약으로 볼 수 있어요.' : ' 쓰고 싶은 기사 옆 🎯를 누르면 카드가 만들어져요.') + '</div>';
+    else if(blog){
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'date' ? '최신순' : '정확도순') + ' · 전체 ' + (st.total || 0).toLocaleString() + '건 중 ' + st.items.length + '건 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += blogListHtml(st.items, function(i){ return 'data-blogmk="' + i + '"'; }, 'cb|' + cat + '|');
+    }else{
+      h += '<div class="save-status" style="margin-bottom:6px">' + (st.sort === 'sim' ? '정확도순' : '최신순') + ' · ' + (st.outlet_count || 0) + '개 매체 · ' + new Date(st.fetched_at).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' 기준</div>';
+      h += newsListHtml(st.items, function(i){ return 'data-newsmk="' + i + '"'; }, 'cat|' + cat + '|');
+    }
+    box.innerHTML = h;
+  }
+  async function newsLookup(cat, q, sort){
+    q = String(q || '').trim();
+    if(!q){ toast('검색어를 넣어주세요.'); return; }
+    var blog = newsMode === 'blog';
+    var st = newsByCat[nkey(cat)] = { q: q, sort: sort || (blog ? 'sim' : 'date'), loading: true };
+    renderNews();
+    try{
+      var r = blog ? await blogFetchRaw(q, st.sort) : await newsFetchRaw(q, st.sort);
+      st.outlet_count = r.outlet_count; st.total = r.total; st.fetched_at = Date.now(); st.items = r.items;
+    }catch(e){ st.error = newsErr(e); }
+    st.loading = false;
+    renderNews();
+  }
+  async function saveNewsHidden(){
+    if(!db){ toast('지금은 저장 기능을 쓸 수 없어요.'); return; }
+    try{ await db.doc('settings/news_queries').set({ updated_at: Date.now(), hidden: newsHidden }); }catch(e){ toast('저장하지 못했어요. 다시 시도해주세요.'); }
+  }
+  document.getElementById('newsBox').addEventListener('click', function(e){
+    var del = e.target.closest('[data-newsq-del]');
+    if(del){ (newsHidden[currentFilter] = newsHidden[currentFilter] || []).push(del.dataset.newsqDel); renderNews(); saveNewsHidden(); return; }
+    if(e.target.closest('[data-newsq-reset]')){ delete newsHidden[currentFilter]; renderNews(); saveNewsHidden(); return; }
+    var tab = e.target.closest('[data-newstab]');
+    if(tab){
+      var nm = tab.dataset.newstab; if(nm === newsMode) return;
+      newsMode = nm;
+      var prev = newsByCat[nm === 'blog' ? currentFilter : currentFilter + '|blog'];
+      if(!newsByCat[nkey(currentFilter)] && prev && prev.q) newsLookup(currentFilter, prev.q, nm === 'blog' ? 'sim' : 'date'); else renderNews();
+      return;
+    }
+    var q = e.target.closest('[data-newsq]');
+    if(q){ var cur = newsByCat[nkey(currentFilter)] || {}; newsLookup(currentFilter, q.dataset.newsq, cur.sort); return; }
+    var bmk = e.target.closest('[data-blogmk]');
+    if(bmk && !bmk.disabled){
+      var bcat = currentFilter, bi = Number(bmk.dataset.blogmk), bst = newsByCat[bcat + '|blog'];
+      makeNewsCard({ item: bst && bst.items && blogAsItem(bst.items[bi]), busyKey: 'cb|' + bcat + '|' + bi, catKey: bcat, query: bst && bst.q, origin: 'blog', kind: 'blog', rerender: renderNews });
+      return;
+    }
+    var mk = e.target.closest('[data-newsmk]');
+    if(mk && !mk.disabled){
+      var cat = currentFilter, i = Number(mk.dataset.newsmk), st = newsByCat[cat];
+      makeNewsCard({ item: st && st.items && st.items[i], busyKey: 'cat|' + cat + '|' + i, catKey: cat, query: st && st.q, origin: 'news', rerender: renderNews });
+    }
+  });
+  document.getElementById('newsBox').addEventListener('submit', function(e){
+    e.preventDefault();
+    var inp = document.getElementById('newsInput'), srt = document.getElementById('newsSort');
+    newsLookup(currentFilter, inp && inp.value, srt && srt.value);
+  });
+  document.getElementById('newsBox').addEventListener('change', function(e){
+    if(e.target.id !== 'newsSort') return;
+    var st = newsByCat[nkey(currentFilter)];
+    if(st && st.q) newsLookup(currentFilter, st.q, e.target.value);
+    else { newsByCat[nkey(currentFilter)] = { q: '', sort: e.target.value }; }
+  });
   function renderCelebRank(){
     var el = document.getElementById('homeCelebs'), st = document.getElementById('celebState');
     if(!el) return;
@@ -3512,8 +3913,11 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         '<span class="save-status">검색량 순 · 눌러서 조회</span></div>' +
       (rows.length
         ? '<div class="chk-list">' + rows.slice(0, 15).map(function(r, i){
-            return '<button type="button" class="chk" data-pickkw="' + esc(r.name) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%">' +
-              '<span class="mk">' + (i + 1) + '</span><span class="tx"><b>' + esc(r.name) + '</b><small>월 ' + Number(r.volume || 0).toLocaleString() + '회' + (r.trend ? ' · ' + esc(r.trend) : '') + '</small></span></button>' + inlineKwSlot(r.name); }).join('') + '</div>'
+            var on = !!celebTopics[r.name];
+            return '<div class="pick-row"><button type="button" class="chk" data-pickkw="' + esc(r.name) + '" style="text-align:left;font:inherit;color:inherit;cursor:pointer">' +
+              '<span class="mk">' + (i + 1) + '</span><span class="tx"><b>' + esc(r.name) + '</b><small>월 ' + Number(r.volume || 0).toLocaleString() + '회' + (r.trend ? ' · ' + esc(r.trend) : '') + '</small></span></button>' +
+              '<button type="button" class="btn-sm' + (on ? ' primary' : '') + '" data-celebtopic="' + esc(r.name) + '" aria-pressed="' + on + '">' + (on ? '📰 뉴스 닫기' : '📰 뉴스 보기') + '</button></div>' +
+              inlineKwSlot(r.name, 'celeb_fashion') + celebTopicPanel(r.name); }).join('') + '</div>'
         : '<div class="save-status">아직 랭킹이 없어요. 내 정보 탭에서 명단을 확인하고 갱신을 눌러주세요.</div>');
     fillInlineKw(el);
   }
@@ -3554,6 +3958,10 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
   }
   document.getElementById('homeCelebs').addEventListener('click', function(e){
     if(e.target.closest('#celebRefresh')){ refreshCelebRank(); return; }
+    var ct = e.target.closest('[data-celebtopic]');
+    if(ct){ toggleCelebTopic(ct.dataset.celebtopic); return; }
+    var cm = e.target.closest('[data-celebmk]');
+    if(cm){ if(!cm.disabled){ var pr = cm.dataset.celebmk.split('|'); makeCelebCard(pr[0], Number(pr[pr.length - 1])); } return; }
     if(relatedJump(e)) return;
     var b = e.target.closest('[data-pickkw]'); if(!b) return;
     toggleInlineKw(b.dataset.pickkw);
@@ -3577,6 +3985,85 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     var d = e.target.closest('[data-celeb-del]'); if(!d || !db) return;
     try{ await db.doc('celebs/' + d.dataset.celebDel).delete(); }catch(err){ toast('삭제 실패 — ' + ((err && (err.message || err.code)) || '알 수 없는 오류')); }
   });
+
+
+  /* ── 📮 발행 자동 감지 (2026-10-01, 은아님 요청) ──
+     중계 서버 blog_feed(내 블로그 RSS 최근 글, 토큰 0)를 받아, 초안은 있는데 발행 기록이 없는 홈피드 카드·체험단과
+     초안 첫 줄(제목)을 비교해 맞으면 posted_url·발행 시각을 채우고 발행으로 기록한다.
+     맞는 기준은 근거 없이 정한 값이다: 공백·기호를 뺀 제목이 같거나(1.0), 한쪽이 다른 쪽을 포함하고 짧은 쪽이 8자 이상(0.9),
+     아니면 2글자 조각 겹침(Dice)이 0.8 이상. 두 번째 후보와 점수 차가 0.05 미만이면 애매하다고 보고 건드리지 않는다.
+     한 글은 한 카드에만 붙는다. 페이지를 열면 한 번 자동으로 돌고, 홈의 📮 발행 확인으로 다시 돌릴 수 있다. */
+  var detectStarted = false, detectBusy = false;
+  function normTitle(t){ return String(t || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, ''); }
+  function titleOf(draft){
+    var lines = String(draft || '').split('\n');
+    for(var i = 0; i < lines.length; i++){ var l = lines[i].trim(); if(l) return l.replace(/^#+\s*/, ''); }
+    return '';
+  }
+  function titleScore(a, b){
+    a = normTitle(a); b = normTitle(b);
+    if(!a || !b) return 0;
+    if(a === b) return 1;
+    var sh = a.length <= b.length ? a : b, lg = sh === a ? b : a;
+    if(sh.length >= 8 && lg.indexOf(sh) >= 0) return 0.9;
+    function bg(x){ var m = {}, n = 0; for(var i = 0; i < x.length - 1; i++){ var k = x.slice(i, i + 2); m[k] = (m[k] || 0) + 1; n++; } return { m: m, n: n }; }
+    var A = bg(a), B = bg(b); if(!A.n || !B.n) return 0;
+    var inter = 0; Object.keys(A.m).forEach(function(k){ if(B.m[k]) inter += Math.min(A.m[k], B.m[k]); });
+    return 2 * inter / (A.n + B.n);
+  }
+  async function detectPublished(manual){
+    if(detectBusy) return;
+    var st = document.getElementById('detectState'), btn = document.getElementById('detectBtn');
+    var say = function(t){ if(st) st.textContent = t; };
+    if(!db || !campLoaded || !itemsLoaded){ if(manual) toast('아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+    var cands = [];
+    allItems.forEach(function(i){ if(i.draft_content && !i.posted_url && i.status !== 'posted') cands.push({ kind: 'item', id: i.id, title: titleOf(i.draft_content), ref: i }); });
+    camps.forEach(function(c){ var sg = stageOf(c); if(c.draft_content && !c.posted_url && sg !== 'posted' && sg !== 'dropped' && sg !== 'closed') cands.push({ kind: 'camp', id: c.id, title: titleOf(c.draft_content), ref: c }); });
+    cands = cands.filter(function(c){ return c.title; });
+    if(!cands.length){ say(manual ? '발행 기록이 필요한 초안이 없어요' : st && st.textContent); return; }
+    detectBusy = true; if(btn) btn.disabled = true; say('내 블로그 최근 글을 확인하는 중…');
+    try{
+      await initKeywordMcp();
+      if(!mcpNs) throw { code: 'server_not_connected', message: 'claude.ai 에서 대시보드를 열어야 확인할 수 있어요.' };
+      var res = await mcpNs.callTool(MCP_SERVER, 'blog_feed', { limit: 50 }, { cache: { staleTime: 300000 } });
+      var d = res && res.payload;
+      if(!d || typeof d !== 'object' || d.error) throw { code: 'tool_error', message: d && d.error };
+      var posts = (d.items || []).filter(function(x){ return x && x.title && safeUrl(x.link); });
+      var pairs = [];
+      cands.forEach(function(c){
+        var sc = posts.map(function(p, j){ return { j: j, s: titleScore(c.title, p.title) }; }).sort(function(a, b){ return b.s - a.s; });
+        var best = sc[0], second = sc[1];
+        if(best && best.s >= 0.8){
+          if(second && best.s - second.s < 0.05) pairs.push({ c: c, amb: true });
+          else pairs.push({ c: c, j: best.j, s: best.s });
+        }
+      });
+      var used = {}, matched = 0, amb = 0;
+      pairs.filter(function(x){ return !x.amb; }).sort(function(a, b){ return b.s - a.s; }).forEach(function(x){ if(!used[x.j]) used[x.j] = x; });
+      var writes = [];
+      Object.keys(used).forEach(function(j){
+        var x = used[j], p = posts[j], c = x.c, link = safeUrl(p.link);
+        var ts = Number(p.ts) || (p.published ? Date.parse(p.published) : 0) || Date.now();
+        if(c.kind === 'item'){
+          writes.push(db.doc('items/' + c.id).update({ posted_url: link, posted_at: ts, status: 'posted', status_updated_at: Date.now(), posted_auto: true }));
+        }else{
+          writes.push(db.doc('campaigns/' + c.id).update({ posted_url: link, posted_at: ts, status: '블로그 포스팅 완료', status_updated_at: Date.now(), blog_done: true,
+            note: ((c.ref.note || '') + '\n📮 발행 자동 감지 (' + localToday() + ', 제목 일치 ' + Math.round(x.s * 100) + '%)').trim() }));
+        }
+      });
+      amb = pairs.filter(function(x){ return x.amb; }).length;
+      await Promise.all(writes); matched = writes.length;
+      var t = matched ? matched + '건을 발행으로 기록했어요 📮' : '새로 발행된 글은 없어요';
+      if(amb) t += ' · 애매한 ' + amb + '건은 직접 확인해주세요';
+      say(t + ' · ' + nowHM() + ' 확인');
+      if(matched || manual) toast(t);
+    }catch(e){
+      say(newsErr(e));
+      if(manual) toast('발행을 확인하지 못했어요. ' + newsErr(e));
+    }
+    detectBusy = false; if(btn) btn.disabled = false;
+  }
+  document.getElementById('detectBtn').addEventListener('click', function(){ detectPublished(true); });
 
   /* 초안 프롬프트에 붙이는 "내 정보" 블록. 적어둔 게 없으면 빈 문자열이라 기존 동작 그대로다.
      제품은 여행 카드를 뺀 모든 카드에, 여행은 여행 카드에는 전부, 그 밖의 카드에는 주제에 지역명이 나올 때만 붙인다. */
@@ -3759,6 +4246,22 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
     try{
       db.doc('settings/celeb_rank').onSnapshot(function(snap){
         celebRank = snap && snap.exists ? snap.data() : null;
+        renderCelebRank();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/news_queries').onSnapshot(function(snap){
+        newsHidden = snap && snap.exists ? (snap.data().hidden || {}) : {};
+        renderNews();
+      }, function(){});
+    }catch(e){}
+
+    try{
+      db.doc('settings/celeb_topic').onSnapshot(function(snap){
+        var cur = snap && snap.exists ? (snap.data().names || {}) : {};
+        Object.keys(celebTopicBusy).forEach(function(k){ cur[k] = celebTopics[k]; });   // 조회 중인 건 화면 값 유지
+        celebTopics = cur;
         renderCelebRank();
       }, function(){});
     }catch(e){}
