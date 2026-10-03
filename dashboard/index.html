@@ -3015,7 +3015,8 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
      9/22에 "대시보드는 캘린더를 못 부른다"고 적었던 건 MCP 통로를 찾기 전 기록이라 틀렸다.
      커넥터 표시 이름이 주소다. 캘린더는 이름이 같은 게 여러 개라 id 로만 지정한다 (docs/40). */
   var CAL_SERVER = 'Google Calendar';
-  var CAL_ID = 'family13035616985683376181@group.calendar.google.com';
+  /* 2026-10-03: 가족 그룹 캘린더(family1303…)는 가족 공유를 끊을 수 없고 일정이 통째로 사라진 일이 있어 르나 개인 캘린더 "EL.LIGHT"로 옮김 */
+  var CAL_ID = '562e35df8d32deae6edaac7b9cab8f2c2bca722a8b6de884003e44bdea7903ec@group.calendar.google.com';
   var mcpNs = null;          // claude.use('mcp') 결과. null 이면 이 화면에서는 못 쓴다
   var mcpChecked = false;
   var kwBusy = false;
@@ -3394,7 +3395,7 @@ document.getElementById('f_naver_review').addEventListener('input', function(){ 
         patch.note = ((c.note || '') + '\n📅 캘린더 일정 변경 (' + localToday() + ', ' + fmtShort(c.visit_date) + (c.visit_time ? ' ' + c.visit_time : '') + ')').trim();
       }
       await db.doc('campaigns/' + id).update(patch);
-      toast(need === 'create' ? '구글 캘린더 "체험단"에 등록했어요 📅' : '캘린더 일정을 고쳤어요 📅');
+      toast(need === 'create' ? '구글 캘린더 "EL.LIGHT"에 등록했어요 📅' : '캘린더 일정을 고쳤어요 📅');
     }catch(e){
       var f = mcpFix(e, CAL_SERVER);
       toast('캘린더 등록 실패 — ' + f.msg + (f.fix ? ' ' + f.fix.replace(/<[^>]+>/g, '') : ''));
